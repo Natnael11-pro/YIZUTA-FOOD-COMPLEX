@@ -1,7 +1,5 @@
-import { useState, useEffect } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
-import { supabase } from '../../config/supabase'
 import { 
   LayoutDashboard, 
   Shield, 
@@ -16,35 +14,10 @@ interface SidebarProps {
   userRole: string | null
 }
 
-interface UserProfile {
-  full_name: string | null
-  email: string
-}
-
 const Sidebar = ({ userRole }: SidebarProps) => {
   const navigate = useNavigate()
   const location = useLocation()
   const { signOut, user } = useAuth()
-  const [profile, setProfile] = useState<UserProfile | null>(null)
-
-  // Fetch the current user's profile from database
-  useEffect(() => {
-    const fetchProfile = async () => {
-      if (user) {
-        const { data } = await supabase
-          .from('profiles')
-          .select('full_name, email')
-          .eq('id', user.id)
-          .single()
-        
-        if (data) {
-          setProfile(data)
-        }
-      }
-    }
-
-    fetchProfile()
-  }, [user])
 
   const handleSignOut = async () => {
     await signOut()
@@ -99,18 +72,18 @@ const Sidebar = ({ userRole }: SidebarProps) => {
         })}
       </nav>
 
-      {/* User Profile Section */}
+      {/* User Profile Section - Using data from AuthContext */}
       <div className="p-4 border-t border-gray-200">
         <div className="flex items-center mb-3">
           <div className="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center text-white font-semibold">
-            {profile?.full_name?.charAt(0).toUpperCase() || 'U'}
+            {user?.email?.charAt(0).toUpperCase() || 'U'}
           </div>
           <div className="ml-3 overflow-hidden">
             <p className="text-sm font-medium text-gray-900 truncate">
-              {profile?.full_name || 'User'}
+              {user?.email?.split('@')[0] || 'User'}
             </p>
             <p className="text-xs text-gray-500 truncate">
-              {profile?.email || 'Loading...'}
+              {user?.email || 'Loading...'}
             </p>
           </div>
         </div>
