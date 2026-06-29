@@ -2,6 +2,8 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../../config/supabase'
 import { Users, ShoppingCart, TrendingUp, DollarSign, UserPlus, Package } from 'lucide-react'
+import AddCustomerModal from '../../components/AddCustomerModal'
+import AddSalesOrderModal from '../../components/AddSalesOrderModal'
 
 interface Customer {
   id: string
@@ -35,6 +37,10 @@ const SalesPage = () => {
   const [customers, setCustomers] = useState<Customer[]>([])
   const [orders, setOrders] = useState<SalesOrder[]>([])
   const [loading, setLoading] = useState(true)
+  
+  // ← NEW: Modal states
+  const [isCustomerModalOpen, setIsCustomerModalOpen] = useState(false)
+  const [isOrderModalOpen, setIsOrderModalOpen] = useState(false)
 
   const fetchData = async () => {
     try {
@@ -65,7 +71,6 @@ const SalesPage = () => {
     fetchData()
   }, [])
 
-  // Calculate Stats
   const totalCustomers = customers.length
   const activeCustomers = customers.filter(c => c.status === 'active').length
   const totalOrders = orders.length
@@ -91,13 +96,11 @@ const SalesPage = () => {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div>
         <h1 className="text-3xl font-bold text-gray-900">Sales Management</h1>
         <p className="mt-1 text-sm text-gray-500">Customer management and sales orders</p>
       </div>
 
-      {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <div className="p-6 bg-white border border-gray-200 rounded-xl">
           <div className="flex items-center justify-between mb-2">
@@ -138,13 +141,15 @@ const SalesPage = () => {
         </div>
       </div>
 
-      {/* Two Column Layout */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Recent Orders */}
         <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
           <div className="p-4 border-b border-gray-200 flex items-center justify-between">
             <h2 className="text-lg font-semibold text-gray-900">Recent Orders</h2>
-            <button className="flex items-center px-3 py-1.5 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition">
+            {/* ← NEW: Opens Order Modal */}
+            <button 
+              onClick={() => setIsOrderModalOpen(true)}
+              className="flex items-center px-3 py-1.5 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition"
+            >
               <Package className="w-4 h-4 mr-1" />
               New Order
             </button>
@@ -163,13 +168,9 @@ const SalesPage = () => {
               </thead>
               <tbody className="divide-y divide-gray-200">
                 {loading ? (
-                  <tr>
-                    <td colSpan={5} className="px-6 py-8 text-center text-gray-500">Loading...</td>
-                  </tr>
+                  <tr><td colSpan={5} className="px-6 py-8 text-center text-gray-500">Loading...</td></tr>
                 ) : orders.length === 0 ? (
-                  <tr>
-                    <td colSpan={5} className="px-6 py-8 text-center text-gray-500">No orders yet</td>
-                  </tr>
+                  <tr><td colSpan={5} className="px-6 py-8 text-center text-gray-500">No orders yet</td></tr>
                 ) : (
                   orders.slice(0, 5).map((order) => (
                     <tr key={order.id} className="hover:bg-gray-50">
@@ -179,9 +180,7 @@ const SalesPage = () => {
                         <p className="text-xs text-gray-500">{order.customers?.company || ''}</p>
                       </td>
                       <td className="px-6 py-4 text-sm text-gray-600">{order.product}</td>
-                      <td className="px-6 py-4 text-sm font-medium text-gray-900">
-                        {formatCurrency(Number(order.total_amount))}
-                      </td>
+                      <td className="px-6 py-4 text-sm font-medium text-gray-900">{formatCurrency(Number(order.total_amount))}</td>
                       <td className="px-6 py-4">
                         <span className={`px-2.5 py-1 text-xs font-medium rounded-full ${getStatusBadge(order.status)}`}>
                           {order.status.charAt(0).toUpperCase() + order.status.slice(1)}
@@ -195,11 +194,14 @@ const SalesPage = () => {
           </div>
         </div>
 
-        {/* Top Customers */}
         <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
           <div className="p-4 border-b border-gray-200 flex items-center justify-between">
             <h2 className="text-lg font-semibold text-gray-900">Top Customers</h2>
-            <button className="flex items-center px-3 py-1.5 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition">
+            {/* ← NEW: Opens Customer Modal */}
+            <button 
+              onClick={() => setIsCustomerModalOpen(true)}
+              className="flex items-center px-3 py-1.5 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition"
+            >
               <UserPlus className="w-4 h-4 mr-1" />
               Add Customer
             </button>
@@ -234,6 +236,18 @@ const SalesPage = () => {
           </div>
         </div>
       </div>
+
+      {/* ← NEW: Modals at the very end */}
+      <AddCustomerModal
+        isOpen={isCustomerModalOpen}
+        onClose={() => setIsCustomerModalOpen(false)}
+        onCustomerAdded={fetchData}
+      />
+      <AddSalesOrderModal
+        isOpen={isOrderModalOpen}
+        onClose={() => setIsOrderModalOpen(false)}
+        onOrderAdded={fetchData}
+      />
     </div>
   )
 }

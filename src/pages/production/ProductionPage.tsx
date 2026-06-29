@@ -1,7 +1,8 @@
 /* eslint-disable react-hooks/set-state-in-effect */
 import { useState, useEffect } from 'react'
 import { supabase } from '../../config/supabase'
-import { Activity, CheckCircle, TrendingUp, Zap } from 'lucide-react'
+import { Activity, CheckCircle, TrendingUp, Zap, Package } from 'lucide-react'
+import AddBatchModal from '../../components/AddBatchModal'
 
 interface ProductionLine {
   id: string
@@ -29,6 +30,7 @@ const ProductionPage = () => {
   const [lines, setLines] = useState<ProductionLine[]>([])
   const [batches, setBatches] = useState<Batch[]>([])
   const [loading, setLoading] = useState(true)
+  const [isBatchModalOpen, setIsBatchModalOpen] = useState(false) // ← NEW: Modal state
 
   const fetchData = async () => {
     try {
@@ -161,10 +163,7 @@ const ProductionPage = () => {
                         <span className="font-medium text-gray-900">{line.efficiency}%</span>
                       </div>
                       <div className="w-full bg-gray-200 rounded-full h-2">
-                        <div 
-                          className="bg-blue-600 h-2 rounded-full transition-all" 
-                          style={{ width: `${line.efficiency}%` }}
-                        />
+                        <div className="bg-blue-600 h-2 rounded-full transition-all" style={{ width: `${line.efficiency}%` }} />
                       </div>
                     </div>
 
@@ -174,10 +173,7 @@ const ProductionPage = () => {
                         <span className="font-medium text-gray-900">{line.current_output}/{line.target_output}</span>
                       </div>
                       <div className="w-full bg-gray-200 rounded-full h-2">
-                        <div 
-                          className="bg-green-600 h-2 rounded-full transition-all" 
-                          style={{ width: `${(line.current_output / line.target_output) * 100}%` }}
-                        />
+                        <div className="bg-green-600 h-2 rounded-full transition-all" style={{ width: `${(line.current_output / line.target_output) * 100}%` }} />
                       </div>
                     </div>
                   </>
@@ -192,8 +188,16 @@ const ProductionPage = () => {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
-          <div className="p-4 border-b border-gray-200">
+          <div className="p-4 border-b border-gray-200 flex items-center justify-between">
             <h2 className="text-lg font-semibold text-gray-900">Recent Batches</h2>
+            {/* ← NEW: Opens Batch Modal */}
+            <button 
+              onClick={() => setIsBatchModalOpen(true)}
+              className="flex items-center px-3 py-1.5 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition"
+            >
+              <Package className="w-4 h-4 mr-1" />
+              New Batch
+            </button>
           </div>
 
           <div className="overflow-x-auto">
@@ -209,13 +213,9 @@ const ProductionPage = () => {
               </thead>
               <tbody className="divide-y divide-gray-200">
                 {loading ? (
-                  <tr>
-                    <td colSpan={5} className="px-6 py-8 text-center text-gray-500">Loading...</td>
-                  </tr>
+                  <tr><td colSpan={5} className="px-6 py-8 text-center text-gray-500">Loading...</td></tr>
                 ) : batches.length === 0 ? (
-                  <tr>
-                    <td colSpan={5} className="px-6 py-8 text-center text-gray-500">No batches yet</td>
-                  </tr>
+                  <tr><td colSpan={5} className="px-6 py-8 text-center text-gray-500">No batches yet</td></tr>
                 ) : (
                   batches.slice(0, 5).map((batch) => (
                     <tr key={batch.id} className="hover:bg-gray-50">
@@ -278,6 +278,13 @@ const ProductionPage = () => {
           </div>
         </div>
       </div>
+
+      {/* ← NEW: Add Batch Modal at the very end */}
+      <AddBatchModal
+        isOpen={isBatchModalOpen}
+        onClose={() => setIsBatchModalOpen(false)}
+        onBatchAdded={fetchData}
+      />
     </div>
   )
 }

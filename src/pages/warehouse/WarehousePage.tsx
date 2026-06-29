@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../../config/supabase'
 import { Package, Truck, ArrowUpRight, AlertTriangle, Plus } from 'lucide-react'
+import AddInventoryModal from '../../components/AddInventoryModal'
 
 interface InventoryItem {
   id: string
@@ -33,6 +34,7 @@ const WarehousePage = () => {
   const [inventory, setInventory] = useState<InventoryItem[]>([])
   const [shipments, setShipments] = useState<Shipment[]>([])
   const [loading, setLoading] = useState(true)
+  const [isModalOpen, setIsModalOpen] = useState(false) // ← NEW: Modal state
 
   const fetchData = async () => {
     try {
@@ -133,7 +135,11 @@ const WarehousePage = () => {
         <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
           <div className="p-4 border-b border-gray-200 flex items-center justify-between">
             <h2 className="text-lg font-semibold text-gray-900">Inventory Overview</h2>
-            <button className="flex items-center px-3 py-1.5 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition">
+            {/* ← NEW: Updated Add Item button */}
+            <button 
+              onClick={() => setIsModalOpen(true)}
+              className="flex items-center px-3 py-1.5 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition"
+            >
               <Plus className="w-4 h-4 mr-1" />
               Add Item
             </button>
@@ -224,6 +230,13 @@ const WarehousePage = () => {
           </div>
         </div>
       </div>
+
+      {/* ← NEW: Add Inventory Modal at the very end */}
+      <AddInventoryModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        onItemAdded={fetchData}
+      />
     </div>
   )
 }

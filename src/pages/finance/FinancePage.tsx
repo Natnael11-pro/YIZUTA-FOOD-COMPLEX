@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../../config/supabase'
 import { TrendingUp, TrendingDown, DollarSign, FileText, CreditCard } from 'lucide-react'
+import AddTransactionModal from '../../components/AddTransactionModal'
 
 interface Transaction {
   id: string
@@ -16,6 +17,7 @@ interface Transaction {
 const FinancePage = () => {
   const [transactions, setTransactions] = useState<Transaction[]>([])
   const [loading, setLoading] = useState(true)
+  const [isModalOpen, setIsModalOpen] = useState(false) // ← NEW: Modal state
 
   const fetchData = async () => {
     try {
@@ -52,7 +54,7 @@ const FinancePage = () => {
     .filter(t => t.status === 'pending')
     .reduce((sum, t) => sum + Number(t.amount), 0)
 
-  // Mock data for Expense Breakdown (to match Figma perfectly)
+  // Mock data for Expense Breakdown
   const expenseBreakdown = [
     { name: 'Raw Materials', amount: 32500, percentage: 41.6, color: 'bg-blue-600' },
     { name: 'Salaries', amount: 25000, percentage: 32.0, color: 'bg-blue-600' },
@@ -118,7 +120,10 @@ const FinancePage = () => {
         <div className="lg:col-span-2 bg-white border border-gray-200 rounded-xl overflow-hidden">
           <div className="p-4 border-b border-gray-200 flex items-center justify-between">
             <h2 className="text-lg font-semibold text-gray-900">Recent Transactions</h2>
-            <button className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition">
+            <button 
+              onClick={() => setIsModalOpen(true)} // ← NEW: Opens modal
+              className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition"
+            >
               New Transaction
             </button>
           </div>
@@ -211,6 +216,13 @@ const FinancePage = () => {
           <p className="mt-1 text-xs text-gray-500">Process payments and refunds</p>
         </div>
       </div>
+
+      {/* ← NEW: Add Transaction Modal at the very end */}
+      <AddTransactionModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        onTransactionAdded={fetchData}
+      />
     </div>
   )
 }
