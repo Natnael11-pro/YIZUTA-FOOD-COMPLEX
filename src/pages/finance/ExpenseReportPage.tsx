@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../../config/supabase'
-import { FileText, Download, Filter } from 'lucide-react'
+import { Download, Filter } from 'lucide-react'
 
 interface Transaction {
   id: string
@@ -16,10 +16,7 @@ const ExpenseReportPage = () => {
   const [loading, setLoading] = useState(true)
   const [filterCategory, setFilterCategory] = useState('all')
 
-  useEffect(() => {
-    fetchExpenses()
-  }, [])
-
+  // ✅ FIX 1: Declare function BEFORE useEffect
   const fetchExpenses = async () => {
     const { data } = await supabase
       .from('transactions')
@@ -31,20 +28,23 @@ const ExpenseReportPage = () => {
     setLoading(false)
   }
 
-  const totalExpenses = expenses.reduce((sum, t) => sum + Number(t.amount), 0)
-  
+  useEffect(() => {
+    fetchExpenses()
+  }, [])
+
+  // ✅ FIX 2: Removed unused totalExpenses variable
   const filteredExpenses = filterCategory === 'all' 
     ? expenses 
     : expenses.filter(t => t.category === filterCategory)
 
-  const categories = Array.from(new Set(expenses.map(t => t.category).filter(Boolean)))
+  // ✅ FIX 3: Handle null categories properly
+  const categories = Array.from(new Set(expenses.map(t => t.category).filter((cat): cat is string => cat !== null)))
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-ET', { style: 'currency', currency: 'ETB' }).format(amount)
   }
 
   const handleExport = () => {
-    // Simple CSV export simulation
     let csvContent = "data:text/csv;charset=utf-8,Date,Description,Category,Amount,Status\n"
     filteredExpenses.forEach(row => {
       csvContent += `${row.date},${row.description},${row.category || 'N/A'},${row.amount},${row.status}\n`
@@ -75,7 +75,9 @@ const ExpenseReportPage = () => {
       {/* Summary Card */}
       <div className="p-6 bg-white border border-gray-200 rounded-xl">
         <p className="text-sm text-gray-500">Total Expenses (Filtered)</p>
-        <p className="text-3xl font-bold text-red-600 mt-2">{formatCurrency(filteredExpenses.reduce((sum, t) => sum + Number(t.amount), 0))}</p>
+        <p className="text-3xl font-bold text-red-600 mt-2">
+          {formatCurrency(filteredExpenses.reduce((sum, t) => sum + Number(t.amount), 0))}
+        </p>
       </div>
 
       {/* Filters */}
