@@ -11,6 +11,11 @@ import ProductionPage from './pages/production/ProductionPage'
 import FinancePage from './pages/finance/FinancePage'
 import SalesPage from './pages/sales/SalesPage'
 
+// Import New Finance Pages
+import InvoicePage from './pages/finance/InvoicePage'
+import ExpenseReportPage from './pages/finance/ExpenseReportPage'
+import PaymentProcessingPage from './pages/finance/PaymentProcessingPage'
+
 // Secure Route Component - SIMPLIFIED
 const ProtectedRoute = ({ children, allowedRoles }: { children: React.ReactNode, allowedRoles?: string[] }) => {
   const { user, userRole, loading } = useAuth()
@@ -84,6 +89,25 @@ function App() {
             <Route path="/finance" element={
               <ProtectedRoute allowedRoles={['finance', 'admin', 'executive']}>
                 <FinancePage />
+              </ProtectedRoute>
+            } />
+
+            {/* New Finance Sub-Pages */}
+            <Route path="/finance/invoices" element={
+              <ProtectedRoute allowedRoles={['finance', 'admin', 'executive']}>
+                <InvoicePage />
+              </ProtectedRoute>
+            } />
+            
+            <Route path="/finance/reports" element={
+              <ProtectedRoute allowedRoles={['finance', 'admin', 'executive']}>
+                <ExpenseReportPage />
+              </ProtectedRoute>
+            } />
+            
+            <Route path="/finance/payments" element={
+              <ProtectedRoute allowedRoles={['finance', 'admin', 'executive']}>
+                <PaymentProcessingPage />
               </ProtectedRoute>
             } />
             
