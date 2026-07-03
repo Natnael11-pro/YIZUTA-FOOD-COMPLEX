@@ -38,10 +38,7 @@ const PaymentProcessingPage = () => {
   const [date, setDate] = useState(new Date().toISOString().split('T')[0])
   const [reference, setReference] = useState('')
 
-  useEffect(() => {
-    fetchData()
-  }, [])
-
+  // ✅ FIX: Declare fetchData BEFORE useEffect
   const fetchData = async () => {
     const { data: paymentsData } = await supabase
       .from('payments')
@@ -56,6 +53,10 @@ const PaymentProcessingPage = () => {
     if (customersData) setCustomers(customersData)
     setLoading(false)
   }
+
+  useEffect(() => {
+    fetchData()
+  }, [])
 
   const handleRecordPayment = async (e: React.FormEvent) => {
     e.preventDefault()
