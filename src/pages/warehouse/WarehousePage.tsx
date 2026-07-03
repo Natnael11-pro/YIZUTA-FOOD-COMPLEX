@@ -1,8 +1,10 @@
 /* eslint-disable react-hooks/set-state-in-effect */
 import { useState, useEffect } from 'react'
 import { supabase } from '../../config/supabase'
-import { Package, Truck, ArrowUpRight, AlertTriangle, Plus } from 'lucide-react'
+import { Package, Truck, ArrowUpRight, AlertTriangle, Plus, Edit2 } from 'lucide-react'
 import AddInventoryModal from '../../components/AddInventoryModal'
+import EditInventoryModal from '../../components/EditInventoryModal'
+import AddShipmentModal from '../../components/AddShipmentModal'
 
 interface InventoryItem {
   id: string
@@ -34,7 +36,10 @@ const WarehousePage = () => {
   const [inventory, setInventory] = useState<InventoryItem[]>([])
   const [shipments, setShipments] = useState<Shipment[]>([])
   const [loading, setLoading] = useState(true)
-  const [isModalOpen, setIsModalOpen] = useState(false) // ← NEW: Modal state
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false)
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false)
+  const [isShipmentModalOpen, setIsShipmentModalOpen] = useState(false)
+  const [editingItemId, setEditingItemId] = useState<string | null>(null)
 
   const fetchData = async () => {
     try {
@@ -77,6 +82,11 @@ const WarehousePage = () => {
       return <span className="px-2.5 py-1 text-xs font-medium rounded-full bg-yellow-100 text-yellow-700">Low Stock</span>
     }
     return <span className="px-2.5 py-1 text-xs font-medium rounded-full bg-green-100 text-green-700">In Stock</span>
+  }
+
+  const handleEdit = (item: InventoryItem) => {
+    setEditingItemId(item.id)
+    setIsEditModalOpen(true)
   }
 
   return (
@@ -135,14 +145,22 @@ const WarehousePage = () => {
         <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
           <div className="p-4 border-b border-gray-200 flex items-center justify-between">
             <h2 className="text-lg font-semibold text-gray-900">Inventory Overview</h2>
-            {/* ← NEW: Updated Add Item button */}
-            <button 
-              onClick={() => setIsModalOpen(true)}
-              className="flex items-center px-3 py-1.5 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition"
-            >
-              <Plus className="w-4 h-4 mr-1" />
-              Add Item
-            </button>
+            <div className="flex gap-2">
+              <button 
+                onClick={() => setIsShipmentModalOpen(true)}
+                className="flex items-center px-3 py-1.5 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 transition"
+              >
+                <Truck className="w-4 h-4 mr-1" />
+                Shipment
+              </button>
+              <button 
+                onClick={() => setIsAddModalOpen(true)}
+                className="flex items-center px-3 py-1.5 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition"
+              >
+                <Plus className="w-4 h-4 mr-1" />
+                Add Item
+              </button>
+            </div>
           </div>
 
           <div className="overflow-x-auto">
@@ -153,20 +171,17 @@ const WarehousePage = () => {
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">SKU</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Quantity</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
                 {loading ? (
                   <tr>
-                    <td colSpan={4} className="px-6 py-8 text-center text-gray-500">
-                      Loading...
-                    </td>
+                    <td colSpan={5} className="px-6 py-8 text-center text-gray-500">Loading...</td>
                   </tr>
                 ) : inventory.length === 0 ? (
                   <tr>
-                    <td colSpan={4} className="px-6 py-8 text-center text-gray-500">
-                      No inventory items yet
-                    </td>
+                    <td colSpan={5} className="px-6 py-8 text-center text-gray-500">No inventory items yet</td>
                   </tr>
                 ) : (
                   inventory.slice(0, 5).map((item) => (
@@ -178,6 +193,14 @@ const WarehousePage = () => {
                         <p className="text-xs text-gray-500">Reorder: {item.reorder_level} {item.unit}</p>
                       </td>
                       <td className="px-6 py-4">{getStatusBadge(item)}</td>
+                      <td className="px-6 py-4">
+                        <button 
+                          onClick={() => handleEdit(item)}
+                          className="text-blue-600 hover:text-blue-800 text-sm font-medium"
+                        >
+                          <Edit2 className="w-4 h-4" />
+                        </button>
+                      </td>
                     </tr>
                   ))
                 )}
@@ -231,11 +254,22 @@ const WarehousePage = () => {
         </div>
       </div>
 
-      {/* ← NEW: Add Inventory Modal at the very end */}
+      {/* Modals */}
       <AddInventoryModal
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
+        isOpen={isAddModalOpen}
+        onClose={() => setIsAddModalOpen(false)}
         onItemAdded={fetchData}
+      />
+      <EditInventoryModal
+        isOpen={isEditModalOpen}
+        onClose={() => setIsEditModalOpen(false)}
+        onItemUpdated={fetchData}
+        itemId={editingItemId}
+      />
+      <AddShipmentModal
+        isOpen={isShipmentModalOpen}
+        onClose={() => setIsShipmentModalOpen(false)}
+        onShipmentAdded={fetchData}
       />
     </div>
   )
