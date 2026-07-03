@@ -1,8 +1,9 @@
 /* eslint-disable react-hooks/set-state-in-effect */
 import { useState, useEffect } from 'react'
 import { supabase } from '../../config/supabase'
-import { Activity, CheckCircle, TrendingUp, Zap, Package } from 'lucide-react'
+import { Activity, CheckCircle, TrendingUp, Zap, Package, Plus } from 'lucide-react'
 import AddBatchModal from '../../components/AddBatchModal'
+import AddProductionLineModal from '../../components/AddProductionLineModal'
 
 interface ProductionLine {
   id: string
@@ -30,7 +31,8 @@ const ProductionPage = () => {
   const [lines, setLines] = useState<ProductionLine[]>([])
   const [batches, setBatches] = useState<Batch[]>([])
   const [loading, setLoading] = useState(true)
-  const [isBatchModalOpen, setIsBatchModalOpen] = useState(false) // ← NEW: Modal state
+  const [isBatchModalOpen, setIsBatchModalOpen] = useState(false)
+  const [isLineModalOpen, setIsLineModalOpen] = useState(false)
 
   const fetchData = async () => {
     try {
@@ -63,9 +65,11 @@ const ProductionPage = () => {
 
   const unitsToday = batches.reduce((sum, b) => sum + b.quantity, 0)
   const completedBatches = batches.filter(b => b.status === 'completed' && b.quality_status === 'pass').length
+  const failedBatches = batches.filter(b => b.status === 'completed' && b.quality_status === 'fail').length
   const totalBatches = batches.length
   const qualityPassRate = totalBatches > 0 ? Math.round((completedBatches / totalBatches) * 100) : 0
-  const avgEfficiency = lines.length > 0 
+  const defectRate = totalBatches > 0 ? Math.round((failedBatches / totalBatches) * 100) : 0
+  const avgEfficiency = lines.length > 0 && lines.filter(l => l.status === 'running').length > 0
     ? Math.round(lines.filter(l => l.status === 'running').reduce((sum, l) => sum + l.efficiency, 0) / lines.filter(l => l.status === 'running').length)
     : 0
   const linesActive = lines.filter(l => l.status === 'running').length
@@ -133,8 +137,15 @@ const ProductionPage = () => {
       </div>
 
       <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
-        <div className="p-4 border-b border-gray-200">
+        <div className="p-4 border-b border-gray-200 flex items-center justify-between">
           <h2 className="text-lg font-semibold text-gray-900">Production Lines Status</h2>
+          <button 
+            onClick={() => setIsLineModalOpen(true)}
+            className="flex items-center px-3 py-1.5 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition"
+          >
+            <Plus className="w-4 h-4 mr-1" />
+            Add Line
+          </button>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4">
@@ -190,7 +201,6 @@ const ProductionPage = () => {
         <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
           <div className="p-4 border-b border-gray-200 flex items-center justify-between">
             <h2 className="text-lg font-semibold text-gray-900">Recent Batches</h2>
-            {/* ← NEW: Opens Batch Modal */}
             <button 
               onClick={() => setIsBatchModalOpen(true)}
               className="flex items-center px-3 py-1.5 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition"
@@ -259,10 +269,10 @@ const ProductionPage = () => {
             <div>
               <div className="flex items-center justify-between mb-2">
                 <span className="text-sm text-gray-600">Defect Rate</span>
-                <span className="text-lg font-bold text-red-600">{100 - qualityPassRate}%</span>
+                <span className="text-lg font-bold text-red-600">{defectRate}%</span>
               </div>
               <div className="w-full bg-gray-200 rounded-full h-3">
-                <div className="bg-red-600 h-3 rounded-full" style={{ width: `${100 - qualityPassRate}%` }} />
+                <div className="bg-red-600 h-3 rounded-full" style={{ width: `${defectRate}%` }} />
               </div>
             </div>
 
@@ -279,11 +289,16 @@ const ProductionPage = () => {
         </div>
       </div>
 
-      {/* ← NEW: Add Batch Modal at the very end */}
+      {/* Modals */}
       <AddBatchModal
         isOpen={isBatchModalOpen}
         onClose={() => setIsBatchModalOpen(false)}
         onBatchAdded={fetchData}
+      />
+      <AddProductionLineModal
+        isOpen={isLineModalOpen}
+        onClose={() => setIsLineModalOpen(false)}
+        onLineAdded={fetchData}
       />
     </div>
   )
