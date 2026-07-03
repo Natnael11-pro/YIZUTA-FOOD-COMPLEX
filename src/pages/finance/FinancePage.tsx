@@ -1,8 +1,9 @@
 /* eslint-disable react-hooks/set-state-in-effect */
 import { useState, useEffect } from 'react'
 import { supabase } from '../../config/supabase'
-import { TrendingUp, TrendingDown, DollarSign, FileText, CreditCard } from 'lucide-react'
+import { TrendingUp, TrendingDown, DollarSign, FileText, CreditCard, Edit2 } from 'lucide-react'
 import AddTransactionModal from '../../components/AddTransactionModal'
+import EditTransactionModal from '../../components/EditTransactionModal'
 
 interface Transaction {
   id: string
@@ -17,7 +18,9 @@ interface Transaction {
 const FinancePage = () => {
   const [transactions, setTransactions] = useState<Transaction[]>([])
   const [loading, setLoading] = useState(true)
-  const [isModalOpen, setIsModalOpen] = useState(false) // ← NEW: Modal state
+  const [isModalOpen, setIsModalOpen] = useState(false)
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false)
+  const [editingTransactionId, setEditingTransactionId] = useState<string | null>(null)
 
   const fetchData = async () => {
     try {
@@ -54,17 +57,39 @@ const FinancePage = () => {
     .filter(t => t.status === 'pending')
     .reduce((sum, t) => sum + Number(t.amount), 0)
 
-  // Mock data for Expense Breakdown
-  const expenseBreakdown = [
-    { name: 'Raw Materials', amount: 32500, percentage: 41.6, color: 'bg-blue-600' },
-    { name: 'Salaries', amount: 25000, percentage: 32.0, color: 'bg-blue-600' },
-    { name: 'Utilities', amount: 8700, percentage: 11.1, color: 'bg-blue-600' },
-    { name: 'Marketing', amount: 6500, percentage: 8.3, color: 'bg-blue-600' },
-    { name: 'Others', amount: 5500, percentage: 7.0, color: 'bg-blue-600' },
-  ]
+  // Calculate REAL Expense Breakdown from database
+  const expenseBreakdown = (() => {
+    const expenses = transactions.filter(t => t.type === 'expense' && t.status === 'completed')
+    const total = expenses.reduce((sum, t) => sum + Number(t.amount), 0)
+    
+    // Group by category
+    const byCategory = expenses.reduce((acc, t) => {
+      const cat = t.category || 'Others'
+      acc[cat] = (acc[cat] || 0) + Number(t.amount)
+      return acc
+    }, {} as Record<string, number>)
+    
+    // Convert to array and calculate percentages
+    return Object.entries(byCategory)
+      .map(([name, amount]) => ({
+        name,
+        amount,
+        percentage: total > 0 ? Math.round((amount / total) * 100) : 0
+      }))
+      .sort((a, b) => b.amount - a.amount) // Sort by highest amount
+  })()
 
   const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount)
+    return new Intl.NumberFormat('en-ET', { 
+      style: 'currency', 
+      currency: 'ETB',
+      minimumFractionDigits: 2
+    }).format(amount)
+  }
+
+  const handleEdit = (transaction: Transaction) => {
+    setEditingTransactionId(transaction.id)
+    setIsEditModalOpen(true)
   }
 
   return (
@@ -121,7 +146,7 @@ const FinancePage = () => {
           <div className="p-4 border-b border-gray-200 flex items-center justify-between">
             <h2 className="text-lg font-semibold text-gray-900">Recent Transactions</h2>
             <button 
-              onClick={() => setIsModalOpen(true)} // ← NEW: Opens modal
+              onClick={() => setIsModalOpen(true)}
               className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition"
             >
               New Transaction
@@ -137,13 +162,14 @@ const FinancePage = () => {
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Amount</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
                 {loading ? (
-                  <tr><td colSpan={5} className="px-6 py-8 text-center text-gray-500">Loading...</td></tr>
+                  <tr><td colSpan={6} className="px-6 py-8 text-center text-gray-500">Loading...</td></tr>
                 ) : transactions.length === 0 ? (
-                  <tr><td colSpan={5} className="px-6 py-8 text-center text-gray-500">No transactions yet</td></tr>
+                  <tr><td colSpan={6} className="px-6 py-8 text-center text-gray-500">No transactions yet</td></tr>
                 ) : (
                   transactions.slice(0, 6).map((t) => (
                     <tr key={t.id} className="hover:bg-gray-50">
@@ -168,6 +194,14 @@ const FinancePage = () => {
                           {t.status.charAt(0).toUpperCase() + t.status.slice(1)}
                         </span>
                       </td>
+                      <td className="px-6 py-4">
+                        <button 
+                          onClick={() => handleEdit(t)}
+                          className="text-blue-600 hover:text-blue-800"
+                        >
+                          <Edit2 className="w-4 h-4" />
+                        </button>
+                      </td>
                     </tr>
                   ))
                 )}
@@ -182,18 +216,22 @@ const FinancePage = () => {
             <h2 className="text-lg font-semibold text-gray-900">Expense Breakdown</h2>
           </div>
           <div className="p-4 space-y-4">
-            {expenseBreakdown.map((item) => (
-              <div key={item.name}>
-                <div className="flex items-center justify-between mb-1">
-                  <span className="text-sm text-gray-700">{item.name}</span>
-                  <span className="text-sm font-medium text-gray-900">{formatCurrency(item.amount)}</span>
+            {expenseBreakdown.length === 0 ? (
+              <p className="text-sm text-gray-500 text-center py-4">No expenses yet</p>
+            ) : (
+              expenseBreakdown.map((item) => (
+                <div key={item.name}>
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-sm text-gray-700">{item.name}</span>
+                    <span className="text-sm font-medium text-gray-900">{formatCurrency(item.amount)}</span>
+                  </div>
+                  <div className="w-full bg-gray-200 rounded-full h-2">
+                    <div className="bg-blue-600 h-2 rounded-full" style={{ width: `${item.percentage}%` }} />
+                  </div>
+                  <p className="text-xs text-gray-500 mt-1">{item.percentage}% of total</p>
                 </div>
-                <div className="w-full bg-gray-200 rounded-full h-2">
-                  <div className={`${item.color} h-2 rounded-full`} style={{ width: `${item.percentage}%` }} />
-                </div>
-                <p className="text-xs text-gray-500 mt-1">{item.percentage}% of total</p>
-              </div>
-            ))}
+              ))
+            )}
           </div>
         </div>
       </div>
@@ -217,11 +255,17 @@ const FinancePage = () => {
         </div>
       </div>
 
-      {/* ← NEW: Add Transaction Modal at the very end */}
+      {/* Modals */}
       <AddTransactionModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         onTransactionAdded={fetchData}
+      />
+      <EditTransactionModal
+        isOpen={isEditModalOpen}
+        onClose={() => setIsEditModalOpen(false)}
+        onTransactionUpdated={fetchData}
+        transactionId={editingTransactionId}
       />
     </div>
   )
