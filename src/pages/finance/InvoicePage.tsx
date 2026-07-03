@@ -17,9 +17,18 @@ interface InvoiceItem {
   total: number
 }
 
+interface Invoice {
+  id: string
+  invoice_number: string
+  customer_name: string
+  total_amount: number
+  status: string
+  created_at: string
+}
+
 const InvoicePage = () => {
   const [customers, setCustomers] = useState<Customer[]>([])
-  const [invoices, setInvoices] = useState<any[]>([])
+  const [invoices, setInvoices] = useState<Invoice[]>([]) // ✅ FIX: Removed 'any' type
   const [loading, setLoading] = useState(true)
   const [isCreating, setIsCreating] = useState(false)
   
@@ -36,10 +45,7 @@ const InvoicePage = () => {
   const [notes, setNotes] = useState('')
   const [dueDate, setDueDate] = useState('')
 
-  useEffect(() => {
-    fetchData()
-  }, [])
-
+  // ✅ FIX 1: Declare fetchData BEFORE useEffect
   const fetchData = async () => {
     const { data: customersData } = await supabase.from('customers').select('*').order('name')
     const { data: invoicesData } = await supabase.from('invoices').select('*, customers(name)').order('created_at', { ascending: false })
@@ -48,6 +54,10 @@ const InvoicePage = () => {
     if (invoicesData) setInvoices(invoicesData)
     setLoading(false)
   }
+
+  useEffect(() => {
+    fetchData()
+  }, [])
 
   const calculateItemTotal = (quantity: number, unitPrice: number) => {
     return quantity * unitPrice
@@ -77,14 +87,14 @@ const InvoicePage = () => {
     setItems(items.filter(item => item.id !== id))
   }
 
-  const handleItemChange = (id: string, field: keyof InvoiceItem, value: any) => {
+  const handleItemChange = (id: string, field: keyof InvoiceItem, value: string | number) => {
     const updated = items.map(item => {
       if (item.id === id) {
         const updatedItem = { ...item, [field]: value }
         if (field === 'quantity' || field === 'unit_price') {
           updatedItem.total = calculateItemTotal(
-            field === 'quantity' ? value : item.quantity,
-            field === 'unit_price' ? value : item.unit_price
+            field === 'quantity' ? Number(value) : item.quantity,
+            field === 'unit_price' ? Number(value) : item.unit_price
           )
         }
         return updatedItem
@@ -105,8 +115,11 @@ const InvoicePage = () => {
 
     const { subtotal, taxAmount, total } = calculateInvoiceTotal()
 
+    // ✅ FIX 2: Generate invoice number BEFORE the insert (not during render)
+    const invoiceNumber = `INV-${new Date().getTime().toString().slice(-6)}`
+
     const { error } = await supabase.from('invoices').insert({
-      invoice_number: `INV-${Date.now().toString().slice(-6)}`,
+      invoice_number: invoiceNumber,
       customer_id: selectedCustomer,
       customer_name: customer.name,
       customer_email: customer.email,
