@@ -42,19 +42,19 @@ const AddInventoryModal = ({ isOpen, onClose, onItemAdded }: AddInventoryModalPr
       if (error) throw error
 
       alert('Inventory item added successfully!')
-      onItemAdded() // Refresh the list
-      onClose() // Close modal
+      onItemAdded()
+      onClose()
       
-      // Reset form
       setItemName('')
       setSku('')
       setQuantity('')
       setReorderLevel('')
       setCategory('')
       
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Error adding item:', err)
-      setError(err.message || 'Failed to add item')
+      const errorMessage = err instanceof Error ? err.message : 'Failed to add item'
+      setError(errorMessage)
     } finally {
       setLoading(false)
     }
@@ -63,7 +63,6 @@ const AddInventoryModal = ({ isOpen, onClose, onItemAdded }: AddInventoryModalPr
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
       <div className="bg-white rounded-xl shadow-xl w-full max-w-md mx-4">
-        {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-gray-200">
           <h2 className="text-xl font-semibold text-gray-900">Add New Inventory Item</h2>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition">
@@ -71,7 +70,6 @@ const AddInventoryModal = ({ isOpen, onClose, onItemAdded }: AddInventoryModalPr
           </button>
         </div>
 
-        {/* Form */}
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           {error && (
             <div className="p-3 bg-red-50 border border-red-200 text-red-600 text-sm rounded-lg">
@@ -168,7 +166,6 @@ const AddInventoryModal = ({ isOpen, onClose, onItemAdded }: AddInventoryModalPr
             />
           </div>
 
-          {/* Buttons */}
           <div className="flex items-center justify-end space-x-3 pt-4 border-t border-gray-200">
             <button
               type="button"
