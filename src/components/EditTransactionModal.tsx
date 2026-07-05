@@ -19,7 +19,6 @@ const EditTransactionModal = ({ isOpen, onClose, onTransactionUpdated, transacti
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
-  // Load existing transaction data
   useEffect(() => {
     if (transactionId && isOpen) {
       const loadTransaction = async () => {
@@ -67,9 +66,10 @@ const EditTransactionModal = ({ isOpen, onClose, onTransactionUpdated, transacti
       alert('Transaction updated successfully!')
       onTransactionUpdated()
       onClose()
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Error updating transaction:', err)
-      setError(err.message || 'Failed to update transaction')
+      const errorMessage = err instanceof Error ? err.message : 'Failed to update transaction'
+      setError(errorMessage)
     } finally {
       setLoading(false)
     }
