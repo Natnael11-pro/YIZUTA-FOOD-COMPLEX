@@ -8,8 +8,7 @@ import {
   ShoppingCart, 
   DollarSign, 
   LogOut,
-  FileText,
-  CreditCard
+  FileText
 } from 'lucide-react'
 
 interface SidebarProps {
@@ -34,10 +33,9 @@ const Sidebar = ({ userRole }: SidebarProps) => {
       { name: 'Warehouse', icon: Package, path: '/warehouse', roles: ['storekeeper', 'admin'] },
       { name: 'Sales', icon: ShoppingCart, path: '/sales', roles: ['sales', 'admin'] },
       { name: 'Finance', icon: DollarSign, path: '/finance', roles: ['finance', 'admin', 'executive'] },
-      // New Finance Sub-Pages
+      // Finance Sub-Pages - Only Invoices & Reports
       { name: 'Invoices', icon: FileText, path: '/finance/invoices', roles: ['finance', 'admin', 'executive'] },
       { name: 'Reports', icon: FileText, path: '/finance/reports', roles: ['finance', 'admin', 'executive'] },
-      { name: 'Payments', icon: CreditCard, path: '/finance/payments', roles: ['finance', 'admin', 'executive'] },
     ]
 
     return allItems.filter(item => 
