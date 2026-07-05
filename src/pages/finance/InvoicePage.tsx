@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../../config/supabase'
 import { useAuth } from '../../context/AuthContext'
-import { Plus, Download, Send, Trash2, Edit2, X } from 'lucide-react'
+import { Plus, Download, Send, Trash2, Edit2 } from 'lucide-react'
 
 interface Customer {
   id: string
@@ -54,6 +54,7 @@ const InvoicePage = () => {
   const [notes, setNotes] = useState('')
   const [dueDate, setDueDate] = useState('')
 
+  // Define fetchData outside useEffect so it can be called from other functions
   const fetchData = async () => {
     const { data: customersData } = await supabase.from('customers').select('*').order('name')
     const { data: invoicesData } = await supabase.from('invoices').select('*').order('created_at', { ascending: false })
@@ -64,13 +65,25 @@ const InvoicePage = () => {
   }
 
   useEffect(() => {
-    fetchData()
+    let isMounted = true
+    
+    const loadData = async () => {
+      if (isMounted) {
+        await fetchData()
+      }
+    }
+
+    loadData()
+    
+    return () => {
+      isMounted = false
+    }
   }, [])
 
-  const calculateItemTotal = (quantity: number, unitPrice: number) => quantity * unitPrice
+  const calculateItemTotal = (quantity: number, unitPrice: number): number => quantity * unitPrice
 
   const calculateInvoiceTotal = () => {
-    const subtotal = items.reduce((sum, item) => sum + item.total, 0)
+    const subtotal = items.reduce((sum: number, item: InvoiceItem) => sum + item.total, 0)
     const taxAmount = (subtotal * taxRate) / 100
     return { subtotal, taxAmount, total: subtotal + taxAmount }
   }
@@ -321,7 +334,7 @@ const InvoicePage = () => {
             ) : invoices.length === 0 ? (
               <tr><td colSpan={6} className="px-6 py-8 text-center">No invoices yet</td></tr>
             ) : (
-              invoices.map((inv) => (
+              invoices.map((inv: Invoice) => (
                 <tr key={inv.id} className="hover:bg-gray-50">
                   <td className="px-6 py-4 font-medium text-gray-900">{inv.invoice_number}</td>
                   <td className="px-6 py-4 text-sm text-gray-700">{inv.customer_name}</td>
