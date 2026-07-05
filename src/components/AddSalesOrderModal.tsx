@@ -8,8 +8,15 @@ interface AddSalesOrderModalProps {
   onOrderAdded: () => void
 }
 
+// ✅ FIX: Added proper interface instead of 'any'
+interface Customer {
+  id: string
+  name: string
+  company: string | null
+}
+
 const AddSalesOrderModal = ({ isOpen, onClose, onOrderAdded }: AddSalesOrderModalProps) => {
-  const [customers, setCustomers] = useState<any[]>([])
+  const [customers, setCustomers] = useState<Customer[]>([])
   const [customerId, setCustomerId] = useState('')
   const [product, setProduct] = useState('')
   const [quantity, setQuantity] = useState('')
@@ -19,11 +26,10 @@ const AddSalesOrderModal = ({ isOpen, onClose, onOrderAdded }: AddSalesOrderModa
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
-  // Fetch customers for the dropdown when modal opens
   useEffect(() => {
     if (isOpen) {
       supabase.from('customers').select('id, name, company').then(({ data }) => {
-        if (data) setCustomers(data)
+        if (data) setCustomers(data as Customer[])
       })
     }
   }, [isOpen])
@@ -43,7 +49,7 @@ const AddSalesOrderModal = ({ isOpen, onClose, onOrderAdded }: AddSalesOrderModa
       const { error } = await supabase
         .from('sales_orders')
         .insert({
-          order_number: `ORD-${Math.floor(Math.random() * 10000)}`, // Auto-generate simple ID
+          order_number: `ORD-${Math.floor(Math.random() * 10000)}`,
           customer_id: customerId,
           product,
           quantity: qty,
@@ -63,9 +69,10 @@ const AddSalesOrderModal = ({ isOpen, onClose, onOrderAdded }: AddSalesOrderModa
       setProduct('')
       setQuantity('')
       setUnitPrice('')
-    } catch (error) {
-      console.error('Error creating order:', error)
-      setError('Failed to create order. Please try again.')
+    } catch (err: unknown) {
+      console.error('Error creating order:', err)
+      const errorMessage = err instanceof Error ? err.message : 'Failed to create order. Please try again.'
+      setError(errorMessage)
     } finally {
       setLoading(false)
     }
