@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../../config/supabase'
-import { Plus, Download, Send, Trash2, Edit2, X, AlertTriangle } from 'lucide-react'
+import { useAuth } from '../../context/AuthContext'
+import { Plus, Download, Send, Trash2, Edit2, X } from 'lucide-react'
 
 interface Customer {
   id: string
@@ -34,6 +35,9 @@ interface Invoice {
 }
 
 const InvoicePage = () => {
+  const { userRole } = useAuth()
+  const canModifyInvoices = userRole === 'finance'
+
   const [customers, setCustomers] = useState<Customer[]>([])
   const [invoices, setInvoices] = useState<Invoice[]>([])
   const [loading, setLoading] = useState(true)
@@ -42,7 +46,6 @@ const InvoicePage = () => {
   const [editingInvoiceId, setEditingInvoiceId] = useState<string | null>(null)
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null)
   
-  // Form state
   const [selectedCustomer, setSelectedCustomer] = useState('')
   const [items, setItems] = useState<InvoiceItem[]>([{
     id: '1', description: '', quantity: 1, unit_price: 0, total: 0
@@ -128,19 +131,13 @@ const InvoicePage = () => {
       items: items.map(({ description, quantity, unit_price, total: itemTotal }) => ({
         description, quantity, unit_price, total: itemTotal
       })),
-      subtotal,
-      tax_rate: taxRate,
-      tax_amount: taxAmount,
-      total_amount: total,
+      subtotal, tax_rate: taxRate, tax_amount: taxAmount, total_amount: total,
       issue_date: new Date().toISOString().split('T')[0],
-      due_date: dueDate,
-      status: 'draft',
-      notes: notes || null
+      due_date: dueDate, status: 'draft', notes: notes || null
     })
 
-    if (error) {
-      alert('Error creating invoice: ' + error.message)
-    } else {
+    if (error) alert('Error creating invoice: ' + error.message)
+    else {
       alert('Invoice created successfully!')
       setIsCreating(false)
       resetForm()
@@ -148,17 +145,12 @@ const InvoicePage = () => {
     }
   }
 
-  // Edit Invoice - Load data into form
   const handleEditInvoice = (invoice: Invoice) => {
     const customer = customers.find(c => c.name === invoice.customer_name)
     if (customer) setSelectedCustomer(customer.id)
     
     setItems(invoice.items.map((item, index) => ({
-      id: index.toString(),
-      description: item.description,
-      quantity: item.quantity,
-      unit_price: item.unit_price,
-      total: item.total
+      id: index.toString(), description: item.description, quantity: item.quantity, unit_price: item.unit_price, total: item.total
     })))
     setTaxRate(invoice.tax_rate)
     setNotes(invoice.notes || '')
@@ -168,33 +160,20 @@ const InvoicePage = () => {
     setIsCreating(true)
   }
 
-  // Save Edited Invoice
   const handleSaveEdit = async () => {
     if (!editingInvoiceId) return
-
     const customer = customers.find(c => c.id === selectedCustomer)
     if (!customer) return
 
     const { subtotal, taxAmount, total } = calculateInvoiceTotal()
-
     const { error } = await supabase.from('invoices').update({
-      customer_id: selectedCustomer,
-      customer_name: customer.name,
-      customer_email: customer.email,
-      items: items.map(({ description, quantity, unit_price, total: itemTotal }) => ({
-        description, quantity, unit_price, total: itemTotal
-      })),
-      subtotal,
-      tax_rate: taxRate,
-      tax_amount: taxAmount,
-      total_amount: total,
-      due_date: dueDate,
-      notes: notes || null
+      customer_id: selectedCustomer, customer_name: customer.name, customer_email: customer.email,
+      items: items.map(({ description, quantity, unit_price, total: itemTotal }) => ({ description, quantity, unit_price, total: itemTotal })),
+      subtotal, tax_rate: taxRate, tax_amount: taxAmount, total_amount: total, due_date: dueDate, notes: notes || null
     }).eq('id', editingInvoiceId)
 
-    if (error) {
-      alert('Error updating invoice: ' + error.message)
-    } else {
+    if (error) alert('Error updating invoice: ' + error.message)
+    else {
       alert('Invoice updated successfully!')
       setIsCreating(false)
       resetForm()
@@ -202,18 +181,15 @@ const InvoicePage = () => {
     }
   }
 
-  // Delete Invoice
   const handleDeleteInvoice = async (id: string) => {
     const { error } = await supabase.from('invoices').delete().eq('id', id)
-    if (error) {
-      alert('Error deleting invoice: ' + error.message)
-    } else {
+    if (error) alert('Error deleting invoice: ' + error.message)
+    else {
       setDeleteConfirmId(null)
       fetchData()
     }
   }
 
-  // Change Status (Send / Mark Paid)
   const handleChangeStatus = async (id: string, newStatus: string) => {
     const { error } = await supabase.from('invoices').update({ status: newStatus }).eq('id', id)
     if (!error) fetchData()
@@ -225,36 +201,27 @@ const InvoicePage = () => {
 
   const getStatusBadge = (status: string) => {
     const colors: Record<string, string> = {
-      draft: 'bg-gray-100 text-gray-700',
-      sent: 'bg-blue-100 text-blue-700',
-      paid: 'bg-green-100 text-green-700',
-      overdue: 'bg-red-100 text-red-700',
+      draft: 'bg-gray-100 text-gray-700', sent: 'bg-blue-100 text-blue-700',
+      paid: 'bg-green-100 text-green-700', overdue: 'bg-red-100 text-red-700',
     }
     return colors[status] || 'bg-gray-100 text-gray-700'
   }
 
-  // Create / Edit Form View
   if (isCreating) {
     return (
       <div className="space-y-6">
         <div className="flex items-center justify-between">
-          <h1 className="text-3xl font-bold text-gray-900">
-            {isEditing ? 'Edit Invoice' : 'Create Invoice'}
-          </h1>
+          <h1 className="text-3xl font-bold text-gray-900">{isEditing ? 'Edit Invoice' : 'Create Invoice'}</h1>
           <button onClick={() => { setIsCreating(false); resetForm() }} className="text-gray-600 hover:text-gray-900">Cancel</button>
         </div>
-
         <div className="bg-white border border-gray-200 rounded-xl p-6 space-y-6">
           <div>
             <label className="block mb-1.5 text-sm font-medium text-gray-700">Customer</label>
             <select value={selectedCustomer} onChange={(e) => setSelectedCustomer(e.target.value)} className="w-full px-4 py-2.5 border border-gray-300 rounded-lg">
               <option value="">Select a customer...</option>
-              {customers.map(c => (
-                <option key={c.id} value={c.id}>{c.name} {c.company ? `(${c.company})` : ''}</option>
-              ))}
+              {customers.map(c => <option key={c.id} value={c.id}>{c.name} {c.company ? `(${c.company})` : ''}</option>)}
             </select>
           </div>
-
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <h3 className="text-lg font-semibold">Items</h3>
@@ -262,7 +229,6 @@ const InvoicePage = () => {
                 <Plus className="w-4 h-4 mr-1" /> Add Item
               </button>
             </div>
-
             {items.map((item) => (
               <div key={item.id} className="grid grid-cols-12 gap-4 items-end">
                 <div className="col-span-5">
@@ -287,7 +253,6 @@ const InvoicePage = () => {
               </div>
             ))}
           </div>
-
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block mb-1.5 text-sm font-medium text-gray-700">Tax Rate (%)</label>
@@ -298,12 +263,10 @@ const InvoicePage = () => {
               <input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} className="w-full px-4 py-2.5 border rounded-lg" />
             </div>
           </div>
-
           <div>
             <label className="block mb-1.5 text-sm font-medium text-gray-700">Notes</label>
             <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} className="w-full px-4 py-2.5 border rounded-lg" placeholder="Additional notes..." />
           </div>
-
           <div className="border-t pt-4">
             <div className="flex justify-end">
               <div className="text-right space-y-2">
@@ -313,7 +276,6 @@ const InvoicePage = () => {
               </div>
             </div>
           </div>
-
           <div className="flex justify-end space-x-3">
             <button onClick={() => { setIsCreating(false); resetForm() }} className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg">Cancel</button>
             {isEditing ? (
@@ -327,7 +289,6 @@ const InvoicePage = () => {
     )
   }
 
-  // Invoice List View
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -335,9 +296,11 @@ const InvoicePage = () => {
           <h1 className="text-3xl font-bold text-gray-900">Invoices</h1>
           <p className="text-sm text-gray-500">Generate and manage invoices</p>
         </div>
-        <button onClick={() => setIsCreating(true)} className="flex items-center px-4 py-2 text-white bg-blue-600 rounded-lg hover:bg-blue-700">
-          <Plus className="w-4 h-4 mr-2" /> Create Invoice
-        </button>
+        {canModifyInvoices && (
+          <button onClick={() => setIsCreating(true)} className="flex items-center px-4 py-2 text-white bg-blue-600 rounded-lg hover:bg-blue-700">
+            <Plus className="w-4 h-4 mr-2" /> Create Invoice
+          </button>
+        )}
       </div>
 
       <div className="bg-white border rounded-xl overflow-hidden">
@@ -371,65 +334,37 @@ const InvoicePage = () => {
                   </td>
                   <td className="px-6 py-4">
                     <div className="flex items-center space-x-2">
-                      {/* Send (only for draft) */}
-                      {inv.status === 'draft' && (
-                        <button 
-                          onClick={() => handleChangeStatus(inv.id, 'sent')}
-                          className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition"
-                          title="Send to customer"
-                        >
-                          <Send className="w-4 h-4" />
-                        </button>
-                      )}
-                      {/* Mark Paid (only for sent) */}
-                      {inv.status === 'sent' && (
-                        <button 
-                          onClick={() => handleChangeStatus(inv.id, 'paid')}
-                          className="p-1.5 text-green-600 hover:bg-green-50 rounded-lg transition"
-                          title="Mark as paid"
-                        >
-                          <span className="text-xs font-bold">Paid</span>
-                        </button>
-                      )}
-                      {/* Edit */}
-                      <button 
-                        onClick={() => handleEditInvoice(inv)}
-                        className="p-1.5 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition"
-                        title="Edit invoice"
-                      >
-                        <Edit2 className="w-4 h-4" />
-                      </button>
-                      {/* Download */}
-                      <button 
-                        className="p-1.5 text-gray-500 hover:text-green-600 hover:bg-green-50 rounded-lg transition"
-                        title="Download invoice"
-                      >
-                        <Download className="w-4 h-4" />
-                      </button>
-                      {/* Delete */}
-                      {deleteConfirmId === inv.id ? (
-                        <div className="flex items-center space-x-1">
-                          <button 
-                            onClick={() => handleDeleteInvoice(inv.id)}
-                            className="px-2 py-1 text-xs text-white bg-red-600 rounded hover:bg-red-700"
-                          >
-                            Confirm
+                      {canModifyInvoices ? (
+                        <>
+                          {inv.status === 'draft' && (
+                            <button onClick={() => handleChangeStatus(inv.id, 'sent')} className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition" title="Send to customer">
+                              <Send className="w-4 h-4" />
+                            </button>
+                          )}
+                          {inv.status === 'sent' && (
+                            <button onClick={() => handleChangeStatus(inv.id, 'paid')} className="p-1.5 text-green-600 hover:bg-green-50 rounded-lg transition" title="Mark as paid">
+                              <span className="text-xs font-bold">Paid</span>
+                            </button>
+                          )}
+                          <button onClick={() => handleEditInvoice(inv)} className="p-1.5 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition" title="Edit invoice">
+                            <Edit2 className="w-4 h-4" />
                           </button>
-                          <button 
-                            onClick={() => setDeleteConfirmId(null)}
-                            className="px-2 py-1 text-xs text-gray-600 bg-gray-100 rounded hover:bg-gray-200"
-                          >
-                            Cancel
+                          <button className="p-1.5 text-gray-500 hover:text-green-600 hover:bg-green-50 rounded-lg transition" title="Download invoice">
+                            <Download className="w-4 h-4" />
                           </button>
-                        </div>
+                          {deleteConfirmId === inv.id ? (
+                            <div className="flex items-center space-x-1">
+                              <button onClick={() => handleDeleteInvoice(inv.id)} className="px-2 py-1 text-xs text-white bg-red-600 rounded hover:bg-red-700">Confirm</button>
+                              <button onClick={() => setDeleteConfirmId(null)} className="px-2 py-1 text-xs text-gray-600 bg-gray-100 rounded hover:bg-gray-200">Cancel</button>
+                            </div>
+                          ) : (
+                            <button onClick={() => setDeleteConfirmId(inv.id)} className="p-1.5 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition" title="Delete invoice">
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          )}
+                        </>
                       ) : (
-                        <button 
-                          onClick={() => setDeleteConfirmId(inv.id)}
-                          className="p-1.5 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition"
-                          title="Delete invoice"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                        <span className="text-xs text-gray-400 italic">View Only</span>
                       )}
                     </div>
                   </td>
