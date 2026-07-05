@@ -1,6 +1,7 @@
 /* eslint-disable react-hooks/set-state-in-effect */
 import { useState, useEffect } from 'react'
 import { supabase } from '../../config/supabase'
+import { useAuth } from '../../context/AuthContext'
 import { TrendingUp, TrendingDown, Edit2, Trash2 } from 'lucide-react'
 import AddTransactionModal from '../../components/AddTransactionModal'
 import EditTransactionModal from '../../components/EditTransactionModal'
@@ -16,6 +17,9 @@ interface Transaction {
 }
 
 const FinancePage = () => {
+  const { userRole } = useAuth()
+  const canModifyFinance = userRole === 'finance'
+
   const [transactions, setTransactions] = useState<Transaction[]>([])
   const [loading, setLoading] = useState(true)
   const [isModalOpen, setIsModalOpen] = useState(false)
@@ -43,7 +47,6 @@ const FinancePage = () => {
     fetchData()
   }, [])
 
-  // Delete Transaction
   const handleDelete = async (id: string) => {
     const { error } = await supabase.from('transactions').delete().eq('id', id)
     if (error) {
@@ -54,7 +57,6 @@ const FinancePage = () => {
     }
   }
 
-  // Calculate Stats
   const totalRevenue = transactions
     .filter(t => t.type === 'income' && t.status === 'completed')
     .reduce((sum, t) => sum + Number(t.amount), 0)
@@ -97,13 +99,11 @@ const FinancePage = () => {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div>
         <h1 className="text-3xl font-bold text-gray-900">Finance</h1>
         <p className="mt-1 text-sm text-gray-500">Financial overview and transaction management</p>
       </div>
 
-      {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <div className="p-6 bg-white border border-gray-200 rounded-xl">
           <div className="flex items-center justify-between mb-2">
@@ -135,15 +135,15 @@ const FinancePage = () => {
         </div>
       </div>
 
-      {/* Two Column Layout */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Recent Transactions */}
         <div className="lg:col-span-2 bg-white border border-gray-200 rounded-xl overflow-hidden">
           <div className="p-4 border-b border-gray-200 flex items-center justify-between">
             <h2 className="text-lg font-semibold text-gray-900">Recent Transactions</h2>
-            <button onClick={() => setIsModalOpen(true)} className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition">
-              New Transaction
-            </button>
+            {canModifyFinance && (
+              <button onClick={() => setIsModalOpen(true)} className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition">
+                New Transaction
+              </button>
+            )}
           </div>
 
           <div className="overflow-x-auto">
@@ -187,24 +187,24 @@ const FinancePage = () => {
                       </td>
                       <td className="px-4 py-4">
                         <div className="flex items-center space-x-1">
-                          {/* Edit */}
-                          <button onClick={() => handleEdit(t)} className="p-1.5 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition" title="Edit">
-                            <Edit2 className="w-4 h-4" />
-                          </button>
-                          {/* Delete */}
-                          {deleteConfirmId === t.id ? (
-                            <div className="flex items-center space-x-1">
-                              <button onClick={() => handleDelete(t.id)} className="px-2 py-1 text-xs text-white bg-red-600 rounded hover:bg-red-700">
-                                Yes
+                          {canModifyFinance ? (
+                            <>
+                              <button onClick={() => handleEdit(t)} className="p-1.5 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition" title="Edit">
+                                <Edit2 className="w-4 h-4" />
                               </button>
-                              <button onClick={() => setDeleteConfirmId(null)} className="px-2 py-1 text-xs text-gray-600 bg-gray-100 rounded hover:bg-gray-200">
-                                No
-                              </button>
-                            </div>
+                              {deleteConfirmId === t.id ? (
+                                <div className="flex items-center space-x-1">
+                                  <button onClick={() => handleDelete(t.id)} className="px-2 py-1 text-xs text-white bg-red-600 rounded hover:bg-red-700">Yes</button>
+                                  <button onClick={() => setDeleteConfirmId(null)} className="px-2 py-1 text-xs text-gray-600 bg-gray-100 rounded hover:bg-gray-200">No</button>
+                                </div>
+                              ) : (
+                                <button onClick={() => setDeleteConfirmId(t.id)} className="p-1.5 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition" title="Delete">
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              )}
+                            </>
                           ) : (
-                            <button onClick={() => setDeleteConfirmId(t.id)} className="p-1.5 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition" title="Delete">
-                              <Trash2 className="w-4 h-4" />
-                            </button>
+                            <span className="text-xs text-gray-400 italic">View Only</span>
                           )}
                         </div>
                       </td>
@@ -216,7 +216,6 @@ const FinancePage = () => {
           </div>
         </div>
 
-        {/* Expense Breakdown */}
         <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
           <div className="p-4 border-b border-gray-200">
             <h2 className="text-lg font-semibold text-gray-900">Expense Breakdown</h2>
@@ -242,7 +241,6 @@ const FinancePage = () => {
         </div>
       </div>
 
-      {/* Modals */}
       <AddTransactionModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
