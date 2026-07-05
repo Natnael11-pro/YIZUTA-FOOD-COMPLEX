@@ -18,43 +18,50 @@ const ExpenseReportPage = () => {
   const [filterType, setFilterType] = useState('all')
   const [filterCategory, setFilterCategory] = useState('all')
 
-  const fetchTransactions = async () => {
-    const { data } = await supabase
-      .from('transactions')
-      .select('*')
-      .order('date', { ascending: false })
-    
-    if (data) setTransactions(data)
-    setLoading(false)
-  }
-
   useEffect(() => {
+    let isMounted = true
+    
+    const fetchTransactions = async () => {
+      const { data } = await supabase
+        .from('transactions')
+        .select('*')
+        .order('date', { ascending: false })
+      
+      if (isMounted && data) {
+        setTransactions(data)
+        setLoading(false)
+      }
+    }
+
     fetchTransactions()
+    
+    return () => {
+      isMounted = false
+    }
   }, [])
 
   const totalIncome = transactions
-    .filter(t => t.type === 'income' && t.status === 'completed')
-    .reduce((sum, t) => sum + Number(t.amount), 0)
+    .filter((t: Transaction) => t.type === 'income' && t.status === 'completed')
+    .reduce((sum: number, t: Transaction) => sum + Number(t.amount), 0)
 
   const totalExpenses = transactions
-    .filter(t => t.type === 'expense' && t.status === 'completed')
-    .reduce((sum, t) => sum + Number(t.amount), 0)
+    .filter((t: Transaction) => t.type === 'expense' && t.status === 'completed')
+    .reduce((sum: number, t: Transaction) => sum + Number(t.amount), 0)
 
   const netProfit = totalIncome - totalExpenses
 
-  const filteredTransactions = transactions.filter(t => {
+  const filteredTransactions = transactions.filter((t: Transaction) => {
     const typeMatch = filterType === 'all' || t.type === filterType
     const categoryMatch = filterCategory === 'all' || t.category === filterCategory
     return typeMatch && categoryMatch
   })
 
-  const categories = Array.from(new Set(transactions.map(t => t.category).filter((cat): cat is string => cat !== null)))
+  const categories = Array.from(new Set(transactions.map((t: Transaction) => t.category).filter((cat): cat is string => cat !== null)))
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-ET', { style: 'currency', currency: 'ETB' }).format(amount)
   }
 
-  // Download single transaction
   const downloadTransaction = (transaction: Transaction) => {
     const csvContent = `data:text/csv;charset=utf-8,Date,Type,Description,Category,Amount,Status\n${transaction.date},${transaction.type},${transaction.description},${transaction.category || 'N/A'},${transaction.amount},${transaction.status}`
     const encodedUri = encodeURI(csvContent)
@@ -123,7 +130,7 @@ const ExpenseReportPage = () => {
           className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
         >
           <option value="all">All Categories</option>
-          {categories.map(cat => (
+          {categories.map((cat: string) => (
             <option key={cat} value={cat}>{cat}</option>
           ))}
         </select>
@@ -149,7 +156,7 @@ const ExpenseReportPage = () => {
             ) : filteredTransactions.length === 0 ? (
               <tr><td colSpan={7} className="px-6 py-8 text-center text-gray-500">No transactions found</td></tr>
             ) : (
-              filteredTransactions.map((t) => (
+              filteredTransactions.map((t: Transaction) => (
                 <tr key={t.id} className="hover:bg-gray-50">
                   <td className="px-6 py-4 text-sm text-gray-500">{t.date}</td>
                   <td className="px-6 py-4">
