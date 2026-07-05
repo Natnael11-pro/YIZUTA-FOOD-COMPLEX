@@ -8,8 +8,16 @@ interface AddShipmentModalProps {
   onShipmentAdded: () => void
 }
 
+// ✅ FIX: Defined a proper interface instead of using 'any'
+interface InventoryItem {
+  id: string
+  item_name: string
+  sku: string
+  quantity: number
+}
+
 const AddShipmentModal = ({ isOpen, onClose, onShipmentAdded }: AddShipmentModalProps) => {
-  const [inventory, setInventory] = useState<any[]>([])
+  const [inventory, setInventory] = useState<InventoryItem[]>([])
   const [itemId, setItemId] = useState('')
   const [type, setType] = useState<'inbound' | 'outbound'>('inbound')
   const [quantity, setQuantity] = useState('')
@@ -21,8 +29,8 @@ const AddShipmentModal = ({ isOpen, onClose, onShipmentAdded }: AddShipmentModal
 
   useEffect(() => {
     if (isOpen) {
-      supabase.from('inventory').select('id, item_name, sku').then(({ data }) => {
-        if (data) setInventory(data)
+      supabase.from('inventory').select('id, item_name, sku, quantity').then(({ data }) => {
+        if (data) setInventory(data as InventoryItem[])
       })
     }
   }, [isOpen])
@@ -70,9 +78,10 @@ const AddShipmentModal = ({ isOpen, onClose, onShipmentAdded }: AddShipmentModal
       setSupplier('')
       setClient('')
       setNotes('')
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Error creating shipment:', err)
-      setError(err.message || 'Failed to create shipment')
+      const errorMessage = err instanceof Error ? err.message : 'Failed to create shipment'
+      setError(errorMessage)
     } finally {
       setLoading(false)
     }
