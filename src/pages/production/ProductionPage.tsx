@@ -1,6 +1,7 @@
 /* eslint-disable react-hooks/set-state-in-effect */
 import { useState, useEffect } from 'react'
 import { supabase } from '../../config/supabase'
+import { useAuth } from '../../context/AuthContext'
 import { Activity, CheckCircle, TrendingUp, Zap, Package, Plus } from 'lucide-react'
 import AddBatchModal from '../../components/AddBatchModal'
 import AddProductionLineModal from '../../components/AddProductionLineModal'
@@ -28,6 +29,9 @@ interface Batch {
 }
 
 const ProductionPage = () => {
+  const { userRole } = useAuth()
+  const canModifyProduction = userRole === 'production_manager'
+
   const [lines, setLines] = useState<ProductionLine[]>([])
   const [batches, setBatches] = useState<Batch[]>([])
   const [loading, setLoading] = useState(true)
@@ -139,13 +143,15 @@ const ProductionPage = () => {
       <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
         <div className="p-4 border-b border-gray-200 flex items-center justify-between">
           <h2 className="text-lg font-semibold text-gray-900">Production Lines Status</h2>
-          <button 
-            onClick={() => setIsLineModalOpen(true)}
-            className="flex items-center px-3 py-1.5 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition"
-          >
-            <Plus className="w-4 h-4 mr-1" />
-            Add Line
-          </button>
+          {canModifyProduction && (
+            <button 
+              onClick={() => setIsLineModalOpen(true)}
+              className="flex items-center px-3 py-1.5 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition"
+            >
+              <Plus className="w-4 h-4 mr-1" />
+              Add Line
+            </button>
+          )}
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4">
@@ -201,13 +207,15 @@ const ProductionPage = () => {
         <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
           <div className="p-4 border-b border-gray-200 flex items-center justify-between">
             <h2 className="text-lg font-semibold text-gray-900">Recent Batches</h2>
-            <button 
-              onClick={() => setIsBatchModalOpen(true)}
-              className="flex items-center px-3 py-1.5 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition"
-            >
-              <Package className="w-4 h-4 mr-1" />
-              New Batch
-            </button>
+            {canModifyProduction && (
+              <button 
+                onClick={() => setIsBatchModalOpen(true)}
+                className="flex items-center px-3 py-1.5 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition"
+              >
+                <Package className="w-4 h-4 mr-1" />
+                New Batch
+              </button>
+            )}
           </div>
 
           <div className="overflow-x-auto">
@@ -289,7 +297,6 @@ const ProductionPage = () => {
         </div>
       </div>
 
-      {/* Modals */}
       <AddBatchModal
         isOpen={isBatchModalOpen}
         onClose={() => setIsBatchModalOpen(false)}
