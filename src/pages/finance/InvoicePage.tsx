@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../../config/supabase'
-import { Plus, Download, Send, Trash2 } from 'lucide-react'
+import { Plus, Download, Send, Trash2, Edit2, X, AlertTriangle } from 'lucide-react'
 
 interface Customer {
   id: string
@@ -21,34 +21,39 @@ interface Invoice {
   id: string
   invoice_number: string
   customer_name: string
+  customer_email: string | null
+  items: InvoiceItem[]
+  subtotal: number
+  tax_rate: number
+  tax_amount: number
   total_amount: number
+  issue_date: string
+  due_date: string
   status: string
-  created_at: string
+  notes: string | null
 }
 
 const InvoicePage = () => {
   const [customers, setCustomers] = useState<Customer[]>([])
-  const [invoices, setInvoices] = useState<Invoice[]>([]) // ✅ FIX: Removed 'any' type
+  const [invoices, setInvoices] = useState<Invoice[]>([])
   const [loading, setLoading] = useState(true)
   const [isCreating, setIsCreating] = useState(false)
+  const [isEditing, setIsEditing] = useState(false)
+  const [editingInvoiceId, setEditingInvoiceId] = useState<string | null>(null)
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null)
   
   // Form state
   const [selectedCustomer, setSelectedCustomer] = useState('')
   const [items, setItems] = useState<InvoiceItem[]>([{
-    id: '1',
-    description: '',
-    quantity: 1,
-    unit_price: 0,
-    total: 0
+    id: '1', description: '', quantity: 1, unit_price: 0, total: 0
   }])
   const [taxRate, setTaxRate] = useState(0)
   const [notes, setNotes] = useState('')
   const [dueDate, setDueDate] = useState('')
 
-  // ✅ FIX 1: Declare fetchData BEFORE useEffect
   const fetchData = async () => {
     const { data: customersData } = await supabase.from('customers').select('*').order('name')
-    const { data: invoicesData } = await supabase.from('invoices').select('*, customers(name)').order('created_at', { ascending: false })
+    const { data: invoicesData } = await supabase.from('invoices').select('*').order('created_at', { ascending: false })
     
     if (customersData) setCustomers(customersData)
     if (invoicesData) setInvoices(invoicesData)
@@ -59,36 +64,26 @@ const InvoicePage = () => {
     fetchData()
   }, [])
 
-  const calculateItemTotal = (quantity: number, unitPrice: number) => {
-    return quantity * unitPrice
-  }
+  const calculateItemTotal = (quantity: number, unitPrice: number) => quantity * unitPrice
 
   const calculateInvoiceTotal = () => {
     const subtotal = items.reduce((sum, item) => sum + item.total, 0)
     const taxAmount = (subtotal * taxRate) / 100
-    return {
-      subtotal,
-      taxAmount,
-      total: subtotal + taxAmount
-    }
+    return { subtotal, taxAmount, total: subtotal + taxAmount }
   }
 
   const handleAddItem = () => {
-    setItems([...items, {
-      id: Date.now().toString(),
-      description: '',
-      quantity: 1,
-      unit_price: 0,
-      total: 0
-    }])
+    setItems([...items, { id: Date.now().toString(), description: '', quantity: 1, unit_price: 0, total: 0 }])
   }
 
   const handleRemoveItem = (id: string) => {
-    setItems(items.filter(item => item.id !== id))
+    if (items.length > 1) {
+      setItems(items.filter(item => item.id !== id))
+    }
   }
 
   const handleItemChange = (id: string, field: keyof InvoiceItem, value: string | number) => {
-    const updated = items.map(item => {
+    setItems(items.map(item => {
       if (item.id === id) {
         const updatedItem = { ...item, [field]: value }
         if (field === 'quantity' || field === 'unit_price') {
@@ -100,8 +95,17 @@ const InvoicePage = () => {
         return updatedItem
       }
       return item
-    })
-    setItems(updated)
+    }))
+  }
+
+  const resetForm = () => {
+    setSelectedCustomer('')
+    setItems([{ id: '1', description: '', quantity: 1, unit_price: 0, total: 0 }])
+    setTaxRate(0)
+    setNotes('')
+    setDueDate('')
+    setEditingInvoiceId(null)
+    setIsEditing(false)
   }
 
   const handleCreateInvoice = async () => {
@@ -114,8 +118,6 @@ const InvoicePage = () => {
     if (!customer) return
 
     const { subtotal, taxAmount, total } = calculateInvoiceTotal()
-
-    // ✅ FIX 2: Generate invoice number BEFORE the insert (not during render)
     const invoiceNumber = `INV-${new Date().getTime().toString().slice(-6)}`
 
     const { error } = await supabase.from('invoices').insert({
@@ -123,11 +125,8 @@ const InvoicePage = () => {
       customer_id: selectedCustomer,
       customer_name: customer.name,
       customer_email: customer.email,
-      items: items.map(({ description, quantity, unit_price, total }) => ({
-        description,
-        quantity,
-        unit_price,
-        total
+      items: items.map(({ description, quantity, unit_price, total: itemTotal }) => ({
+        description, quantity, unit_price, total: itemTotal
       })),
       subtotal,
       tax_rate: taxRate,
@@ -149,24 +148,100 @@ const InvoicePage = () => {
     }
   }
 
-  const resetForm = () => {
-    setSelectedCustomer('')
-    setItems([{ id: '1', description: '', quantity: 1, unit_price: 0, total: 0 }])
-    setTaxRate(0)
-    setNotes('')
-    setDueDate('')
+  // Edit Invoice - Load data into form
+  const handleEditInvoice = (invoice: Invoice) => {
+    const customer = customers.find(c => c.name === invoice.customer_name)
+    if (customer) setSelectedCustomer(customer.id)
+    
+    setItems(invoice.items.map((item, index) => ({
+      id: index.toString(),
+      description: item.description,
+      quantity: item.quantity,
+      unit_price: item.unit_price,
+      total: item.total
+    })))
+    setTaxRate(invoice.tax_rate)
+    setNotes(invoice.notes || '')
+    setDueDate(invoice.due_date)
+    setEditingInvoiceId(invoice.id)
+    setIsEditing(true)
+    setIsCreating(true)
+  }
+
+  // Save Edited Invoice
+  const handleSaveEdit = async () => {
+    if (!editingInvoiceId) return
+
+    const customer = customers.find(c => c.id === selectedCustomer)
+    if (!customer) return
+
+    const { subtotal, taxAmount, total } = calculateInvoiceTotal()
+
+    const { error } = await supabase.from('invoices').update({
+      customer_id: selectedCustomer,
+      customer_name: customer.name,
+      customer_email: customer.email,
+      items: items.map(({ description, quantity, unit_price, total: itemTotal }) => ({
+        description, quantity, unit_price, total: itemTotal
+      })),
+      subtotal,
+      tax_rate: taxRate,
+      tax_amount: taxAmount,
+      total_amount: total,
+      due_date: dueDate,
+      notes: notes || null
+    }).eq('id', editingInvoiceId)
+
+    if (error) {
+      alert('Error updating invoice: ' + error.message)
+    } else {
+      alert('Invoice updated successfully!')
+      setIsCreating(false)
+      resetForm()
+      fetchData()
+    }
+  }
+
+  // Delete Invoice
+  const handleDeleteInvoice = async (id: string) => {
+    const { error } = await supabase.from('invoices').delete().eq('id', id)
+    if (error) {
+      alert('Error deleting invoice: ' + error.message)
+    } else {
+      setDeleteConfirmId(null)
+      fetchData()
+    }
+  }
+
+  // Change Status (Send / Mark Paid)
+  const handleChangeStatus = async (id: string, newStatus: string) => {
+    const { error } = await supabase.from('invoices').update({ status: newStatus }).eq('id', id)
+    if (!error) fetchData()
   }
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-ET', { style: 'currency', currency: 'ETB' }).format(amount)
   }
 
+  const getStatusBadge = (status: string) => {
+    const colors: Record<string, string> = {
+      draft: 'bg-gray-100 text-gray-700',
+      sent: 'bg-blue-100 text-blue-700',
+      paid: 'bg-green-100 text-green-700',
+      overdue: 'bg-red-100 text-red-700',
+    }
+    return colors[status] || 'bg-gray-100 text-gray-700'
+  }
+
+  // Create / Edit Form View
   if (isCreating) {
     return (
       <div className="space-y-6">
         <div className="flex items-center justify-between">
-          <h1 className="text-3xl font-bold text-gray-900">Create Invoice</h1>
-          <button onClick={() => setIsCreating(false)} className="text-gray-600 hover:text-gray-900">Cancel</button>
+          <h1 className="text-3xl font-bold text-gray-900">
+            {isEditing ? 'Edit Invoice' : 'Create Invoice'}
+          </h1>
+          <button onClick={() => { setIsCreating(false); resetForm() }} className="text-gray-600 hover:text-gray-900">Cancel</button>
         </div>
 
         <div className="bg-white border border-gray-200 rounded-xl p-6 space-y-6">
@@ -199,7 +274,7 @@ const InvoicePage = () => {
                   <input type="number" value={item.quantity} onChange={(e) => handleItemChange(item.id, 'quantity', parseFloat(e.target.value))} className="w-full px-3 py-2 border rounded-lg" />
                 </div>
                 <div className="col-span-2">
-                  <label className="block mb-1 text-sm text-gray-700">Unit Price</label>
+                  <label className="block mb-1 text-sm text-gray-700">Unit Price (ETB)</label>
                   <input type="number" value={item.unit_price} onChange={(e) => handleItemChange(item.id, 'unit_price', parseFloat(e.target.value))} className="w-full px-3 py-2 border rounded-lg" />
                 </div>
                 <div className="col-span-2">
@@ -230,7 +305,7 @@ const InvoicePage = () => {
           </div>
 
           <div className="border-t pt-4">
-            <div className="flex justify-end space-x-4">
+            <div className="flex justify-end">
               <div className="text-right space-y-2">
                 <p className="text-sm">Subtotal: {formatCurrency(calculateInvoiceTotal().subtotal)}</p>
                 <p className="text-sm">Tax ({taxRate}%): {formatCurrency(calculateInvoiceTotal().taxAmount)}</p>
@@ -240,14 +315,19 @@ const InvoicePage = () => {
           </div>
 
           <div className="flex justify-end space-x-3">
-            <button onClick={() => setIsCreating(false)} className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg">Cancel</button>
-            <button onClick={handleCreateInvoice} className="px-4 py-2 text-white bg-blue-600 rounded-lg">Create Invoice</button>
+            <button onClick={() => { setIsCreating(false); resetForm() }} className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg">Cancel</button>
+            {isEditing ? (
+              <button onClick={handleSaveEdit} className="px-4 py-2 text-white bg-green-600 rounded-lg hover:bg-green-700">Save Changes</button>
+            ) : (
+              <button onClick={handleCreateInvoice} className="px-4 py-2 text-white bg-blue-600 rounded-lg hover:bg-blue-700">Create Invoice</button>
+            )}
           </div>
         </div>
       </div>
     )
   }
 
+  // Invoice List View
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -255,7 +335,7 @@ const InvoicePage = () => {
           <h1 className="text-3xl font-bold text-gray-900">Invoices</h1>
           <p className="text-sm text-gray-500">Generate and manage invoices</p>
         </div>
-        <button onClick={() => setIsCreating(true)} className="flex items-center px-4 py-2 text-white bg-blue-600 rounded-lg">
+        <button onClick={() => setIsCreating(true)} className="flex items-center px-4 py-2 text-white bg-blue-600 rounded-lg hover:bg-blue-700">
           <Plus className="w-4 h-4 mr-2" /> Create Invoice
         </button>
       </div>
@@ -267,31 +347,91 @@ const InvoicePage = () => {
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Invoice #</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Customer</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Amount</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Due Date</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y">
             {loading ? (
-              <tr><td colSpan={5} className="px-6 py-8 text-center">Loading...</td></tr>
+              <tr><td colSpan={6} className="px-6 py-8 text-center">Loading...</td></tr>
             ) : invoices.length === 0 ? (
-              <tr><td colSpan={5} className="px-6 py-8 text-center">No invoices yet</td></tr>
+              <tr><td colSpan={6} className="px-6 py-8 text-center">No invoices yet</td></tr>
             ) : (
               invoices.map((inv) => (
-                <tr key={inv.id}>
-                  <td className="px-6 py-4 font-medium">{inv.invoice_number}</td>
-                  <td className="px-6 py-4">{inv.customer_name}</td>
-                  <td className="px-6 py-4">{formatCurrency(inv.total_amount)}</td>
+                <tr key={inv.id} className="hover:bg-gray-50">
+                  <td className="px-6 py-4 font-medium text-gray-900">{inv.invoice_number}</td>
+                  <td className="px-6 py-4 text-sm text-gray-700">{inv.customer_name}</td>
+                  <td className="px-6 py-4 text-sm font-medium text-gray-900">{formatCurrency(inv.total_amount)}</td>
+                  <td className="px-6 py-4 text-sm text-gray-500">{inv.due_date}</td>
                   <td className="px-6 py-4">
-                    <span className={`px-2.5 py-1 text-xs rounded-full ${
-                      inv.status === 'paid' ? 'bg-green-100 text-green-700' :
-                      inv.status === 'sent' ? 'bg-blue-100 text-blue-700' :
-                      'bg-yellow-100 text-yellow-700'
-                    }`}>{inv.status}</span>
+                    <span className={`px-2.5 py-1 text-xs font-medium rounded-full ${getStatusBadge(inv.status)}`}>
+                      {inv.status.charAt(0).toUpperCase() + inv.status.slice(1)}
+                    </span>
                   </td>
                   <td className="px-6 py-4">
-                    <button className="text-blue-600 hover:text-blue-800 mr-3"><Download className="w-4 h-4" /></button>
-                    <button className="text-green-600 hover:text-green-800"><Send className="w-4 h-4" /></button>
+                    <div className="flex items-center space-x-2">
+                      {/* Send (only for draft) */}
+                      {inv.status === 'draft' && (
+                        <button 
+                          onClick={() => handleChangeStatus(inv.id, 'sent')}
+                          className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition"
+                          title="Send to customer"
+                        >
+                          <Send className="w-4 h-4" />
+                        </button>
+                      )}
+                      {/* Mark Paid (only for sent) */}
+                      {inv.status === 'sent' && (
+                        <button 
+                          onClick={() => handleChangeStatus(inv.id, 'paid')}
+                          className="p-1.5 text-green-600 hover:bg-green-50 rounded-lg transition"
+                          title="Mark as paid"
+                        >
+                          <span className="text-xs font-bold">Paid</span>
+                        </button>
+                      )}
+                      {/* Edit */}
+                      <button 
+                        onClick={() => handleEditInvoice(inv)}
+                        className="p-1.5 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition"
+                        title="Edit invoice"
+                      >
+                        <Edit2 className="w-4 h-4" />
+                      </button>
+                      {/* Download */}
+                      <button 
+                        className="p-1.5 text-gray-500 hover:text-green-600 hover:bg-green-50 rounded-lg transition"
+                        title="Download invoice"
+                      >
+                        <Download className="w-4 h-4" />
+                      </button>
+                      {/* Delete */}
+                      {deleteConfirmId === inv.id ? (
+                        <div className="flex items-center space-x-1">
+                          <button 
+                            onClick={() => handleDeleteInvoice(inv.id)}
+                            className="px-2 py-1 text-xs text-white bg-red-600 rounded hover:bg-red-700"
+                          >
+                            Confirm
+                          </button>
+                          <button 
+                            onClick={() => setDeleteConfirmId(null)}
+                            className="px-2 py-1 text-xs text-gray-600 bg-gray-100 rounded hover:bg-gray-200"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      ) : (
+                        <button 
+                          onClick={() => setDeleteConfirmId(inv.id)}
+                          className="p-1.5 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition"
+                          title="Delete invoice"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))
