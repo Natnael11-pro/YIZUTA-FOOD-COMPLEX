@@ -8,8 +8,15 @@ interface AddBatchModalProps {
   onBatchAdded: () => void
 }
 
+// ✅ FIX: Added proper interface instead of 'any'
+interface ProductionLine {
+  id: string
+  name: string
+  product_type: string
+}
+
 const AddBatchModal = ({ isOpen, onClose, onBatchAdded }: AddBatchModalProps) => {
-  const [lines, setLines] = useState<any[]>([])
+  const [lines, setLines] = useState<ProductionLine[]>([])
   const [product, setProduct] = useState('')
   const [lineId, setLineId] = useState('')
   const [quantity, setQuantity] = useState('')
@@ -18,11 +25,10 @@ const AddBatchModal = ({ isOpen, onClose, onBatchAdded }: AddBatchModalProps) =>
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
-  // Fetch production lines for the dropdown when modal opens
   useEffect(() => {
     if (isOpen) {
       supabase.from('production_lines').select('id, name, product_type').then(({ data }) => {
-        if (data) setLines(data)
+        if (data) setLines(data as ProductionLine[])
       })
     }
   }, [isOpen])
@@ -35,7 +41,6 @@ const AddBatchModal = ({ isOpen, onClose, onBatchAdded }: AddBatchModalProps) =>
     setLoading(true)
 
     try {
-      // Generate a unique batch ID
       const batchId = `BATCH-${Date.now().toString().slice(-6)}`
 
       const { error } = await supabase
@@ -52,17 +57,17 @@ const AddBatchModal = ({ isOpen, onClose, onBatchAdded }: AddBatchModalProps) =>
       if (error) throw error
 
       alert('Production Batch created successfully!')
-      onBatchAdded() // Refresh the list
-      onClose() // Close modal
+      onBatchAdded()
+      onClose()
       
-      // Reset form
       setProduct('')
       setLineId('')
       setQuantity('')
       
-    } catch (error) {
-      console.error('Error creating batch:', error)
-      setError('Failed to create batch. Please try again.')
+    } catch (err: unknown) {
+      console.error('Error creating batch:', err)
+      const errorMessage = err instanceof Error ? err.message : 'Failed to create batch. Please try again.'
+      setError(errorMessage)
     } finally {
       setLoading(false)
     }
@@ -71,7 +76,6 @@ const AddBatchModal = ({ isOpen, onClose, onBatchAdded }: AddBatchModalProps) =>
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
       <div className="bg-white rounded-xl shadow-xl w-full max-w-md mx-4">
-        {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-gray-200">
           <h2 className="text-xl font-semibold text-gray-900">Create New Batch</h2>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition">
@@ -79,7 +83,6 @@ const AddBatchModal = ({ isOpen, onClose, onBatchAdded }: AddBatchModalProps) =>
           </button>
         </div>
 
-        {/* Form */}
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           {error && (
             <div className="p-3 bg-red-50 border border-red-200 text-red-600 text-sm rounded-lg">
@@ -154,7 +157,6 @@ const AddBatchModal = ({ isOpen, onClose, onBatchAdded }: AddBatchModalProps) =>
             </div>
           </div>
 
-          {/* Buttons */}
           <div className="flex items-center justify-end space-x-3 pt-4 border-t border-gray-200">
             <button
               type="button"
