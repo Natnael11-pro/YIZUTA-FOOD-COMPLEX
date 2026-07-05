@@ -20,7 +20,6 @@ const EditInventoryModal = ({ isOpen, onClose, onItemUpdated, itemId }: EditInve
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
-  // Load existing item data
   useEffect(() => {
     if (itemId && isOpen) {
       const loadItem = async () => {
@@ -70,9 +69,10 @@ const EditInventoryModal = ({ isOpen, onClose, onItemUpdated, itemId }: EditInve
       alert('Item updated successfully!')
       onItemUpdated()
       onClose()
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Error updating item:', err)
-      setError(err.message || 'Failed to update item')
+      const errorMessage = err instanceof Error ? err.message : 'Failed to update item'
+      setError(errorMessage)
     } finally {
       setLoading(false)
     }
