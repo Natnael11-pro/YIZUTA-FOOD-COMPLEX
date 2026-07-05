@@ -1,231 +1,279 @@
 /* eslint-disable react-hooks/set-state-in-effect */
 import { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { supabase } from '../config/supabase'
-import { 
-  Package, Factory, DollarSign, ShoppingCart, 
-  TrendingUp, AlertTriangle, ArrowRight 
-} from 'lucide-react'
+import { supabase } from '../../config/supabase'
+import { useAuth } from '../../context/AuthContext'
+import { Package, Truck, ArrowUpRight, AlertTriangle, Plus, Edit2 } from 'lucide-react'
+import AddInventoryModal from '../../components/AddInventoryModal'
+import EditInventoryModal from '../../components/EditInventoryModal'
+import AddShipmentModal from '../../components/AddShipmentModal'
 
-interface DashboardStats {
-  totalRevenue: number
-  totalExpenses: number
-  activeProductionLines: number
-  totalProductionLines: number
-  totalInventoryItems: number
-  lowStockItems: number
-  totalCustomers: number
-  pendingSalesOrders: number
+interface InventoryItem {
+  id: string
+  item_name: string
+  sku: string
+  quantity: number
+  reorder_level: number
+  unit: string
+  category: string | null
+  status: string
+  created_at: string
 }
 
-const DashboardPage = () => {
-  const navigate = useNavigate()
-  const [stats, setStats] = useState<DashboardStats>({
-    totalRevenue: 0,
-    totalExpenses: 0,
-    activeProductionLines: 0,
-    totalProductionLines: 0,
-    totalInventoryItems: 0,
-    lowStockItems: 0,
-    totalCustomers: 0,
-    pendingSalesOrders: 0
-  })
+interface Shipment {
+  id: string
+  item_id: string
+  type: 'inbound' | 'outbound'
+  quantity: number
+  supplier: string | null
+  client: string | null
+  notes: string | null
+  created_at: string
+  inventory?: { item_name: string }
+}
+
+const WarehousePage = () => {
+  const { userRole } = useAuth()
+  const canModifyWarehouse = userRole === 'storekeeper'
+
+  const [inventory, setInventory] = useState<InventoryItem[]>([])
+  const [shipments, setShipments] = useState<Shipment[]>([])
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false)
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false)
+  const [isShipmentModalOpen, setIsShipmentModalOpen] = useState(false)
+  const [editingItemId, setEditingItemId] = useState<string | null>(null)
 
-  const fetchAllStats = async () => {
-    console.log('📊 Dashboard: Fetching stats...')
-    setError(null)
+  const fetchData = async () => {
     try {
-      // 1. Finance Stats
-      console.log('Fetching transactions...')
-      const { data: transactions, error: transError } = await supabase.from('transactions').select('type, amount, status')
-      if (transError) console.error('Transactions error:', transError)
-      const revenue = transactions?.filter(t => t.type === 'income' && t.status === 'completed').reduce((sum, t) => sum + Number(t.amount), 0) || 0
-      const expenses = transactions?.filter(t => t.type === 'expense' && t.status === 'completed').reduce((sum, t) => sum + Number(t.amount), 0) || 0
-      console.log('Revenue:', revenue, 'Expenses:', expenses)
+      const { data: inventoryData, error: inventoryError } = await supabase
+        .from('inventory')
+        .select('*')
+        .order('created_at', { ascending: false })
 
-      // 2. Production Stats
-      console.log('Fetching production lines...')
-      const { data: lines, error: linesError } = await supabase.from('production_lines').select('status')
-      if (linesError) console.error('Production lines error:', linesError)
-      const activeLines = lines?.filter(l => l.status === 'running').length || 0
-      const totalLines = lines?.length || 0
-      console.log('Active lines:', activeLines, 'Total:', totalLines)
+      if (inventoryError) throw inventoryError
+      setInventory(inventoryData || [])
 
-      // 3. Warehouse Stats
-      console.log('Fetching inventory...')
-      const { data: inventory, error: invError } = await supabase.from('inventory').select('quantity, reorder_level')
-      if (invError) console.error('Inventory error:', invError)
-      const totalItems = inventory?.length || 0
-      const lowStock = inventory?.filter(i => i.quantity <= i.reorder_level).length || 0
-      console.log('Total items:', totalItems, 'Low stock:', lowStock)
+      const { data: shipmentsData, error: shipmentsError } = await supabase
+        .from('shipments')
+        .select('*, inventory:item_id(item_name)')
+        .order('created_at', { ascending: false })
+        .limit(10)
 
-      // 4. Sales Stats
-      console.log('Fetching customers...')
-      const { data: customers, error: custError } = await supabase.from('customers').select('id')
-      if (custError) console.error('Customers error:', custError)
-      const totalCustomers = customers?.length || 0
-      
-      console.log('Fetching orders...')
-      const { data: orders, error: ordersError } = await supabase.from('sales_orders').select('status')
-      if (ordersError) console.error('Orders error:', ordersError)
-      const pendingOrders = orders?.filter(o => o.status === 'pending' || o.status === 'processing').length || 0
-      console.log('Pending orders:', pendingOrders)
-
-      setStats({
-        totalRevenue: revenue,
-        totalExpenses: expenses,
-        activeProductionLines: activeLines,
-        totalProductionLines: totalLines,
-        totalInventoryItems: totalItems,
-        lowStockItems: lowStock,
-        totalCustomers: totalCustomers,
-        pendingSalesOrders: pendingOrders
-      })
+      if (shipmentsError) throw shipmentsError
+      setShipments(shipmentsData || [])
     } catch (error) {
-      console.error('❌ Error fetching dashboard stats:', error)
-      setError('Failed to load dashboard data')
+      console.error('Error fetching data:', error)
     } finally {
-      console.log('Dashboard: Loading complete')
       setLoading(false)
     }
   }
 
   useEffect(() => {
-    fetchAllStats()
+    fetchData()
   }, [])
 
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount)
+  // ✅ FIX: Added explicit types to all callbacks
+  const totalItems = inventory.length
+  const itemsReceived = shipments.filter((s: Shipment) => s.type === 'inbound').length
+  const itemsShipped = shipments.filter((s: Shipment) => s.type === 'outbound').length
+  const lowStockItems = inventory.filter((item: InventoryItem) => item.quantity <= item.reorder_level).length
+
+  const getStatusBadge = (item: InventoryItem) => {
+    if (item.quantity === 0) {
+      return <span className="px-2.5 py-1 text-xs font-medium rounded-full bg-red-100 text-red-700">Critical</span>
+    } else if (item.quantity <= item.reorder_level) {
+      return <span className="px-2.5 py-1 text-xs font-medium rounded-full bg-yellow-100 text-yellow-700">Low Stock</span>
+    }
+    return <span className="px-2.5 py-1 text-xs font-medium rounded-full bg-green-100 text-green-700">In Stock</span>
   }
 
-  const departments = [
-    { name: 'Production', icon: Factory, path: '/production', desc: 'Monitor manufacturing lines and quality control', color: 'text-purple-600 bg-purple-50' },
-    { name: 'Warehouse', icon: Package, path: '/warehouse', desc: 'Manage inventory levels and shipments', color: 'text-blue-600 bg-blue-50' },
-    { name: 'Finance', icon: DollarSign, path: '/finance', desc: 'Track revenue, expenses, and invoices', color: 'text-green-600 bg-green-50' },
-    { name: 'Sales', icon: ShoppingCart, path: '/sales', desc: 'Manage customers and sales orders', color: 'text-orange-600 bg-orange-50' },
-  ]
-
-  if (error) {
-    return (
-      <div className="p-12 text-center">
-        <AlertTriangle className="w-16 h-16 text-red-600 mx-auto mb-4" />
-        <h2 className="text-2xl font-bold text-gray-900 mb-2">Error Loading Dashboard</h2>
-        <p className="text-gray-600 mb-4">{error}</p>
-        <button 
-          onClick={() => window.location.reload()}
-          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-        >
-          Retry
-        </button>
-      </div>
-    )
+  const handleEdit = (item: InventoryItem) => {
+    setEditingItemId(item.id)
+    setIsEditModalOpen(true)
   }
 
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold text-gray-900">Executive Dashboard</h1>
-        <p className="mt-1 text-sm text-gray-500">High-level overview of YIZUTA Food Complex operations</p>
+        <h1 className="text-3xl font-bold text-gray-900">Warehouse</h1>
+        <p className="mt-1 text-sm text-gray-500">Inventory management and shipment tracking</p>
       </div>
 
-      {loading ? (
-        <div className="p-12 text-center text-gray-500">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          Loading company data...
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="p-6 bg-white border border-gray-200 rounded-xl">
+          <div className="flex items-center justify-between mb-3">
+            <Package className="w-10 h-10 text-blue-600" />
+          </div>
+          <p className="text-sm text-gray-500">Total Items</p>
+          <p className="text-2xl font-bold text-gray-900">{totalItems}</p>
         </div>
-      ) : (
-        <>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="p-6 bg-white border border-gray-200 rounded-xl">
-              <div className="flex items-center justify-between mb-2">
-                <p className="text-sm text-gray-500">Net Profit</p>
-                <TrendingUp className="w-5 h-5 text-green-600" />
-              </div>
-              <p className="text-2xl font-bold text-gray-900">
-                {formatCurrency(stats.totalRevenue - stats.totalExpenses)}
-              </p>
-              <p className="text-xs text-green-600 mt-1">↗ +18.2% from last month</p>
-            </div>
 
-            <div className="p-6 bg-white border border-gray-200 rounded-xl">
-              <div className="flex items-center justify-between mb-2">
-                <p className="text-sm text-gray-500">Production Status</p>
-                <Factory className="w-5 h-5 text-purple-600" />
-              </div>
-              <p className="text-2xl font-bold text-gray-900">
-                {stats.activeProductionLines}/{stats.totalProductionLines}
-              </p>
-              <p className="text-xs text-gray-500 mt-1">Lines currently running</p>
-            </div>
+        <div className="p-6 bg-white border border-gray-200 rounded-xl">
+          <div className="flex items-center justify-between mb-3">
+            <Truck className="w-10 h-10 text-green-600" />
+          </div>
+          <p className="text-sm text-gray-500">Items Received</p>
+          <p className="text-2xl font-bold text-gray-900">{itemsReceived}</p>
+        </div>
 
-            <div className="p-6 bg-white border border-gray-200 rounded-xl">
-              <div className="flex items-center justify-between mb-2">
-                <p className="text-sm text-gray-500">Inventory Health</p>
-                <Package className="w-5 h-5 text-blue-600" />
-              </div>
-              <p className="text-2xl font-bold text-gray-900">{stats.totalInventoryItems}</p>
-              <p className={`text-xs mt-1 ${stats.lowStockItems > 0 ? 'text-red-600' : 'text-green-600'}`}>
-                {stats.lowStockItems > 0 ? `⚠ ${stats.lowStockItems} low stock items` : '✓ All items in stock'}
-              </p>
-            </div>
+        <div className="p-6 bg-white border border-gray-200 rounded-xl">
+          <div className="flex items-center justify-between mb-3">
+            <ArrowUpRight className="w-10 h-10 text-orange-600" />
+          </div>
+          <p className="text-sm text-gray-500">Items Shipped</p>
+          <p className="text-2xl font-bold text-gray-900">{itemsShipped}</p>
+        </div>
 
-            <div className="p-6 bg-white border border-gray-200 rounded-xl">
-              <div className="flex items-center justify-between mb-2">
-                <p className="text-sm text-gray-500">Sales Pipeline</p>
-                <ShoppingCart className="w-5 h-5 text-orange-600" />
+        <div className="p-6 bg-white border border-gray-200 rounded-xl">
+          <div className="flex items-center justify-between mb-3">
+            <AlertTriangle className="w-10 h-10 text-red-600" />
+          </div>
+          <p className="text-sm text-gray-500">Low Stock Alerts</p>
+          <p className="text-2xl font-bold text-gray-900">{lowStockItems}</p>
+        </div>
+      </div>
+
+      {lowStockItems > 0 && (
+        <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
+          <div className="flex items-center">
+            <AlertTriangle className="w-5 h-5 text-red-600 mr-3" />
+            <p className="text-sm font-medium text-red-800">
+              {lowStockItems} item(s) are below reorder level. Please restock soon.
+            </p>
+          </div>
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+          <div className="p-4 border-b border-gray-200 flex items-center justify-between">
+            <h2 className="text-lg font-semibold text-gray-900">Inventory Overview</h2>
+            {canModifyWarehouse && (
+              <div className="flex gap-2">
+                <button 
+                  onClick={() => setIsShipmentModalOpen(true)}
+                  className="flex items-center px-3 py-1.5 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 transition"
+                >
+                  <Truck className="w-4 h-4 mr-1" />
+                  Shipment
+                </button>
+                <button 
+                  onClick={() => setIsAddModalOpen(true)}
+                  className="flex items-center px-3 py-1.5 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition"
+                >
+                  <Plus className="w-4 h-4 mr-1" />
+                  Add Item
+                </button>
               </div>
-              <p className="text-2xl font-bold text-gray-900">{stats.pendingSalesOrders}</p>
-              <p className="text-xs text-gray-500 mt-1">Pending/Processing orders</p>
-            </div>
+            )}
           </div>
 
-          <div>
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">Department Management</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {departments.map((dept) => {
-                const Icon = dept.icon
-                return (
-                  <button
-                    key={dept.name}
-                    onClick={() => navigate(dept.path)}
-                    className="flex items-center justify-between p-6 bg-white border border-gray-200 rounded-xl hover:shadow-md hover:border-blue-300 transition-all text-left group"
-                  >
-                    <div className="flex items-center">
-                      <div className={`w-12 h-12 rounded-lg flex items-center justify-center mr-4 ${dept.color}`}>
-                        <Icon className="w-6 h-6" />
-                      </div>
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-gray-50 border-b border-gray-200">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Item</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">SKU</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Quantity</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                  {canModifyWarehouse && (
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+                  )}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-200">
+                {loading ? (
+                  <tr><td colSpan={canModifyWarehouse ? 5 : 4} className="px-6 py-8 text-center text-gray-500">Loading...</td></tr>
+                ) : inventory.length === 0 ? (
+                  <tr><td colSpan={canModifyWarehouse ? 5 : 4} className="px-6 py-8 text-center text-gray-500">No inventory items yet</td></tr>
+                ) : (
+                  inventory.slice(0, 5).map((item: InventoryItem) => (
+                    <tr key={item.id} className="hover:bg-gray-50">
+                      <td className="px-6 py-4 text-sm font-medium text-gray-900">{item.item_name}</td>
+                      <td className="px-6 py-4 text-sm text-gray-500">{item.sku}</td>
+                      <td className="px-6 py-4">
+                        <p className="text-sm font-medium text-gray-900">{item.quantity} {item.unit}</p>
+                        <p className="text-xs text-gray-500">Reorder: {item.reorder_level} {item.unit}</p>
+                      </td>
+                      <td className="px-6 py-4">{getStatusBadge(item)}</td>
+                      {canModifyWarehouse && (
+                        <td className="px-6 py-4">
+                          <button onClick={() => handleEdit(item)} className="text-blue-600 hover:text-blue-800 text-sm font-medium">
+                            <Edit2 className="w-4 h-4" />
+                          </button>
+                        </td>
+                      )}
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+          <div className="p-4 border-b border-gray-200">
+            <h2 className="text-lg font-semibold text-gray-900">Recent Shipments</h2>
+          </div>
+
+          <div className="divide-y divide-gray-200">
+            {loading ? (
+              <div className="p-8 text-center text-gray-500">Loading...</div>
+            ) : shipments.length === 0 ? (
+              <div className="p-8 text-center text-gray-500">No shipments yet</div>
+            ) : (
+              shipments.slice(0, 5).map((shipment: Shipment) => (
+                <div key={shipment.id} className="p-4 hover:bg-gray-50">
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-start">
+                      {shipment.type === 'inbound' ? (
+                        <Truck className="w-5 h-5 text-green-600 mr-3 mt-0.5" />
+                      ) : (
+                        <ArrowUpRight className="w-5 h-5 text-blue-600 mr-3 mt-0.5" />
+                      )}
                       <div>
-                        <h3 className="text-base font-semibold text-gray-900">{dept.name}</h3>
-                        <p className="text-sm text-gray-500 mt-0.5">{dept.desc}</p>
+                        <p className="text-sm font-medium text-gray-900">
+                          {shipment.type === 'inbound' ? 'Inbound' : 'Outbound'} - {shipment.inventory?.item_name || 'Unknown Item'}
+                        </p>
+                        <p className="text-xs text-gray-500 mt-1">
+                          {shipment.type === 'inbound' ? `From: ${shipment.supplier || 'N/A'}` : `To: ${shipment.client || 'N/A'}`}
+                        </p>
+                        <p className="text-xs text-gray-500 mt-1">
+                          {new Date(shipment.created_at).toLocaleDateString()}
+                        </p>
                       </div>
                     </div>
-                    <ArrowRight className="w-5 h-5 text-gray-400 group-hover:text-blue-600 group-hover:translate-x-1 transition-all" />
-                  </button>
-                )
-              })}
-            </div>
+                    <span className={`px-2.5 py-1 text-xs font-medium rounded-full ${
+                      shipment.type === 'inbound' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'
+                    }`}>
+                      {shipment.quantity} units
+                    </span>
+                  </div>
+                </div>
+              ))
+            )}
           </div>
+        </div>
+      </div>
 
-          {stats.lowStockItems > 0 && (
-            <div className="p-4 bg-red-50 border border-red-200 rounded-lg flex items-center">
-              <AlertTriangle className="w-5 h-5 text-red-600 mr-3 flex-shrink-0" />
-              <p className="text-sm font-medium text-red-800">
-                Attention Warehouse Team: {stats.lowStockItems} inventory item(s) have fallen below the reorder level.
-              </p>
-              <button 
-                onClick={() => navigate('/warehouse')}
-                className="ml-auto text-sm font-medium text-red-700 hover:text-red-900 underline"
-              >
-                View Inventory
-              </button>
-            </div>
-          )}
-        </>
-      )}
+      <AddInventoryModal
+        isOpen={isAddModalOpen}
+        onClose={() => setIsAddModalOpen(false)}
+        onItemAdded={fetchData}
+      />
+      <EditInventoryModal
+        isOpen={isEditModalOpen}
+        onClose={() => setIsEditModalOpen(false)}
+        onItemUpdated={fetchData}
+        itemId={editingItemId}
+      />
+      <AddShipmentModal
+        isOpen={isShipmentModalOpen}
+        onClose={() => setIsShipmentModalOpen(false)}
+        onShipmentAdded={fetchData}
+      />
     </div>
   )
 }
 
-export default DashboardPage
+export default WarehousePage
