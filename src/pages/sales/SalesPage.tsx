@@ -1,6 +1,7 @@
 /* eslint-disable react-hooks/set-state-in-effect */
 import { useState, useEffect } from 'react'
 import { supabase } from '../../config/supabase'
+import { useAuth } from '../../context/AuthContext'
 import { Users, ShoppingCart, TrendingUp, DollarSign, UserPlus, Package } from 'lucide-react'
 import AddCustomerModal from '../../components/AddCustomerModal'
 import AddSalesOrderModal from '../../components/AddSalesOrderModal'
@@ -34,11 +35,12 @@ interface SalesOrder {
 }
 
 const SalesPage = () => {
+  const { userRole } = useAuth()
+  const canModifySales = userRole === 'sales'
+
   const [customers, setCustomers] = useState<Customer[]>([])
   const [orders, setOrders] = useState<SalesOrder[]>([])
   const [loading, setLoading] = useState(true)
-  
-  // ← NEW: Modal states
   const [isCustomerModalOpen, setIsCustomerModalOpen] = useState(false)
   const [isOrderModalOpen, setIsOrderModalOpen] = useState(false)
 
@@ -145,14 +147,15 @@ const SalesPage = () => {
         <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
           <div className="p-4 border-b border-gray-200 flex items-center justify-between">
             <h2 className="text-lg font-semibold text-gray-900">Recent Orders</h2>
-            {/* ← NEW: Opens Order Modal */}
-            <button 
-              onClick={() => setIsOrderModalOpen(true)}
-              className="flex items-center px-3 py-1.5 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition"
-            >
-              <Package className="w-4 h-4 mr-1" />
-              New Order
-            </button>
+            {canModifySales && (
+              <button 
+                onClick={() => setIsOrderModalOpen(true)}
+                className="flex items-center px-3 py-1.5 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition"
+              >
+                <Package className="w-4 h-4 mr-1" />
+                New Order
+              </button>
+            )}
           </div>
 
           <div className="overflow-x-auto">
@@ -197,14 +200,15 @@ const SalesPage = () => {
         <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
           <div className="p-4 border-b border-gray-200 flex items-center justify-between">
             <h2 className="text-lg font-semibold text-gray-900">Top Customers</h2>
-            {/* ← NEW: Opens Customer Modal */}
-            <button 
-              onClick={() => setIsCustomerModalOpen(true)}
-              className="flex items-center px-3 py-1.5 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition"
-            >
-              <UserPlus className="w-4 h-4 mr-1" />
-              Add Customer
-            </button>
+            {canModifySales && (
+              <button 
+                onClick={() => setIsCustomerModalOpen(true)}
+                className="flex items-center px-3 py-1.5 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition"
+              >
+                <UserPlus className="w-4 h-4 mr-1" />
+                Add Customer
+              </button>
+            )}
           </div>
 
           <div className="divide-y divide-gray-200">
@@ -237,7 +241,6 @@ const SalesPage = () => {
         </div>
       </div>
 
-      {/* ← NEW: Modals at the very end */}
       <AddCustomerModal
         isOpen={isCustomerModalOpen}
         onClose={() => setIsCustomerModalOpen(false)}
