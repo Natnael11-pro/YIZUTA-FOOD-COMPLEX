@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom'
 import { supabase } from '../config/supabase'
 import { 
   Package, Factory, DollarSign, ShoppingCart, 
-  TrendingUp, AlertTriangle, ArrowRight 
+  TrendingUp, AlertTriangle
 } from 'lucide-react'
 
 interface DashboardStats {
@@ -84,7 +84,7 @@ const DashboardPage = () => {
         pendingSalesOrders: pendingOrders
       })
     } catch (error) {
-      console.error('❌ Error fetching dashboard stats:', error)
+      console.error(' Error fetching dashboard stats:', error)
       setError('Failed to load dashboard data')
     } finally {
       console.log('Dashboard: Loading complete')
@@ -97,19 +97,12 @@ const DashboardPage = () => {
   }, [])
 
   const formatCurrency = (amount: number) => {
-  return new Intl.NumberFormat('en-ET', { 
-    style: 'currency', 
-    currency: 'ETB',
-    minimumFractionDigits: 2 
-  }).format(amount)
-}
-
-  const departments = [
-    { name: 'Production', icon: Factory, path: '/production', desc: 'Monitor manufacturing lines and quality control', color: 'text-purple-600 bg-purple-50' },
-    { name: 'Warehouse', icon: Package, path: '/warehouse', desc: 'Manage inventory levels and shipments', color: 'text-blue-600 bg-blue-50' },
-    { name: 'Finance', icon: DollarSign, path: '/finance', desc: 'Track revenue, expenses, and invoices', color: 'text-green-600 bg-green-50' },
-    { name: 'Sales', icon: ShoppingCart, path: '/sales', desc: 'Manage customers and sales orders', color: 'text-orange-600 bg-orange-50' },
-  ]
+    return new Intl.NumberFormat('en-ET', { 
+      style: 'currency', 
+      currency: 'ETB',
+      minimumFractionDigits: 2 
+    }).format(amount)
+  }
 
   if (error) {
     return (
@@ -141,6 +134,7 @@ const DashboardPage = () => {
         </div>
       ) : (
         <>
+          {/* Summary Cards - Only these 4 cards remain */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             <div className="p-6 bg-white border border-gray-200 rounded-xl">
               <div className="flex items-center justify-between mb-2">
@@ -185,33 +179,7 @@ const DashboardPage = () => {
             </div>
           </div>
 
-          <div>
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">Department Management</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {departments.map((dept) => {
-                const Icon = dept.icon
-                return (
-                  <button
-                    key={dept.name}
-                    onClick={() => navigate(dept.path)}
-                    className="flex items-center justify-between p-6 bg-white border border-gray-200 rounded-xl hover:shadow-md hover:border-blue-300 transition-all text-left group"
-                  >
-                    <div className="flex items-center">
-                      <div className={`w-12 h-12 rounded-lg flex items-center justify-center mr-4 ${dept.color}`}>
-                        <Icon className="w-6 h-6" />
-                      </div>
-                      <div>
-                        <h3 className="text-base font-semibold text-gray-900">{dept.name}</h3>
-                        <p className="text-sm text-gray-500 mt-0.5">{dept.desc}</p>
-                      </div>
-                    </div>
-                    <ArrowRight className="w-5 h-5 text-gray-400 group-hover:text-blue-600 group-hover:translate-x-1 transition-all" />
-                  </button>
-                )
-              })}
-            </div>
-          </div>
-
+          {/* Low Stock Alert Banner */}
           {stats.lowStockItems > 0 && (
             <div className="p-4 bg-red-50 border border-red-200 rounded-lg flex items-center">
               <AlertTriangle className="w-5 h-5 text-red-600 mr-3 flex-shrink-0" />
