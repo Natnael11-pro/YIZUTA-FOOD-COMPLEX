@@ -97,8 +97,12 @@ const DashboardPage = () => {
   }, [])
 
   const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount)
-  }
+  return new Intl.NumberFormat('en-ET', { 
+    style: 'currency', 
+    currency: 'ETB',
+    minimumFractionDigits: 2 
+  }).format(amount)
+}
 
   const departments = [
     { name: 'Production', icon: Factory, path: '/production', desc: 'Monitor manufacturing lines and quality control', color: 'text-purple-600 bg-purple-50' },
