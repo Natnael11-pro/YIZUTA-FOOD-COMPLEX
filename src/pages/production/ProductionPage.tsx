@@ -2,9 +2,10 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../../config/supabase'
 import { useAuth } from '../../context/AuthContext'
-import { Activity, CheckCircle, TrendingUp, Zap, Package, Plus } from 'lucide-react'
+import { Activity, CheckCircle, TrendingUp, Zap, Package, Plus, Send } from 'lucide-react'
 import AddBatchModal from '../../components/AddBatchModal'
 import AddProductionLineModal from '../../components/AddProductionLineModal'
+import RequestMaterialModal from '../../components/RequestMaterialModal'
 
 interface ProductionLine {
   id: string
@@ -28,18 +29,32 @@ interface Batch {
   created_at: string
 }
 
+interface MaterialRequest {
+  id: string
+  requested_by_name: string
+  material_name: string
+  quantity: number
+  unit: string
+  urgency: 'low' | 'medium' | 'high'
+  status: 'pending' | 'approved' | 'rejected'
+  created_at: string
+}
+
 const ProductionPage = () => {
   const { userRole } = useAuth()
   const canModifyProduction = userRole === 'production_manager'
 
   const [lines, setLines] = useState<ProductionLine[]>([])
   const [batches, setBatches] = useState<Batch[]>([])
+  const [requests, setRequests] = useState<MaterialRequest[]>([]) // New state for requests
   const [loading, setLoading] = useState(true)
   const [isBatchModalOpen, setIsBatchModalOpen] = useState(false)
   const [isLineModalOpen, setIsLineModalOpen] = useState(false)
+  const [isRequestModalOpen, setIsRequestModalOpen] = useState(false) // New state for modal
 
   const fetchData = async () => {
     try {
+      // 1. Fetch Production Lines
       const { data: linesData, error: linesError } = await supabase
         .from('production_lines')
         .select('*')
@@ -48,6 +63,7 @@ const ProductionPage = () => {
       if (linesError) throw linesError
       setLines(linesData || [])
 
+      // 2. Fetch Batches
       const { data: batchesData, error: batchesError } = await supabase
         .from('batches')
         .select('*')
@@ -56,6 +72,17 @@ const ProductionPage = () => {
 
       if (batchesError) throw batchesError
       setBatches(batchesData || [])
+
+      // 3. Fetch Material Requests (NEW)
+      const { data: requestData, error: requestError } = await supabase
+        .from('material_requests')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(5)
+
+      if (requestError) console.error('Requests error:', requestError)
+      setRequests(requestData || [])
+
     } catch (error) {
       console.error('Error fetching data:', error)
     } finally {
@@ -144,13 +171,22 @@ const ProductionPage = () => {
         <div className="p-4 border-b border-gray-200 flex items-center justify-between">
           <h2 className="text-lg font-semibold text-gray-900">Production Lines Status</h2>
           {canModifyProduction && (
-            <button 
-              onClick={() => setIsLineModalOpen(true)}
-              className="flex items-center px-3 py-1.5 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition"
-            >
-              <Plus className="w-4 h-4 mr-1" />
-              Add Line
-            </button>
+            <div className="flex gap-2">
+              <button 
+                onClick={() => setIsRequestModalOpen(true)}
+                className="flex items-center px-3 py-1.5 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 transition"
+              >
+                <Send className="w-4 h-4 mr-1" />
+                Request Materials
+              </button>
+              <button 
+                onClick={() => setIsLineModalOpen(true)}
+                className="flex items-center px-3 py-1.5 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition"
+              >
+                <Plus className="w-4 h-4 mr-1" />
+                Add Line
+              </button>
+            </div>
           )}
         </div>
 
@@ -297,6 +333,53 @@ const ProductionPage = () => {
         </div>
       </div>
 
+      {/* Material Requests Section (NEW) */}
+      <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+        <div className="p-4 border-b border-gray-200">
+          <h2 className="text-lg font-semibold text-gray-900">My Material Requests</h2>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead className="bg-gray-50 border-b border-gray-200">
+              <tr>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Material</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Quantity</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Urgency</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-200">
+              {requests.length === 0 ? (
+                <tr><td colSpan={4} className="px-6 py-8 text-center text-gray-500">No recent requests</td></tr>
+              ) : (
+                requests.map((req) => (
+                  <tr key={req.id} className="hover:bg-gray-50">
+                    <td className="px-6 py-4 text-sm font-medium text-gray-900">{req.material_name}</td>
+                    <td className="px-6 py-4 text-sm text-gray-600">{req.quantity} {req.unit}</td>
+                    <td className="px-6 py-4">
+                      <span className={`px-2.5 py-1 text-xs font-medium rounded-full ${
+                        req.urgency === 'high' ? 'bg-red-100 text-red-700' : 
+                        req.urgency === 'medium' ? 'bg-yellow-100 text-yellow-700' : 'bg-gray-100 text-gray-700'
+                      }`}>
+                        {req.urgency.charAt(0).toUpperCase() + req.urgency.slice(1)}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className={`px-2.5 py-1 text-xs font-medium rounded-full ${
+                        req.status === 'approved' ? 'bg-green-100 text-green-700' : 
+                        req.status === 'rejected' ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700'
+                      }`}>
+                        {req.status.charAt(0).toUpperCase() + req.status.slice(1)}
+                      </span>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
       <AddBatchModal
         isOpen={isBatchModalOpen}
         onClose={() => setIsBatchModalOpen(false)}
@@ -306,6 +389,11 @@ const ProductionPage = () => {
         isOpen={isLineModalOpen}
         onClose={() => setIsLineModalOpen(false)}
         onLineAdded={fetchData}
+      />
+      <RequestMaterialModal
+        isOpen={isRequestModalOpen}
+        onClose={() => setIsRequestModalOpen(false)}
+        onRequestAdded={fetchData}
       />
     </div>
   )
