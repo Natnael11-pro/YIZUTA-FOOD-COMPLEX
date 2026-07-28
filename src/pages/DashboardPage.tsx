@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../config/supabase'
 import { 
-  Package, Factory, DollarSign, ShoppingCart, 
+  Package, Factory, ShoppingCart, 
   TrendingUp, AlertTriangle
 } from 'lucide-react'
 
