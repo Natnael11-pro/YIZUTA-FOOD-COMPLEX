@@ -114,7 +114,7 @@ const AddSalesOrderModal = ({ isOpen, onClose, onOrderAdded }: AddSalesOrderModa
               <input type="number" value={quantity} onChange={(e) => setQuantity(e.target.value)} className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" required />
             </div>
             <div>
-              <label className="block mb-1.5 text-sm font-medium text-gray-700">Unit Price ($)</label>
+              <label className="block mb-1.5 text-sm font-medium text-gray-700">Unit Price (ETB)</label>
               <input type="number" step="0.01" value={unitPrice} onChange={(e) => setUnitPrice(e.target.value)} className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" required />
             </div>
           </div>
