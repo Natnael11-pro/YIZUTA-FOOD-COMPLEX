@@ -73,14 +73,16 @@ function App() {
               </ProtectedRoute>
             } />
             
+            {/* UPDATED: Added 'executive' for view-only access */}
             <Route path="/warehouse" element={
-              <ProtectedRoute allowedRoles={['storekeeper', 'admin']}>
+              <ProtectedRoute allowedRoles={['storekeeper', 'admin', 'executive']}>
                 <WarehousePage />
               </ProtectedRoute>
             } />
             
+            {/* UPDATED: Added 'executive' for view-only access */}
             <Route path="/production" element={
-              <ProtectedRoute allowedRoles={['production_manager', 'admin']}>
+              <ProtectedRoute allowedRoles={['production_manager', 'admin', 'executive']}>
                 <ProductionPage />
               </ProtectedRoute>
             } />
@@ -104,8 +106,9 @@ function App() {
               </ProtectedRoute>
             } />
             
+            {/* UPDATED: Added 'executive' for view-only access */}
             <Route path="/sales" element={
-              <ProtectedRoute allowedRoles={['sales', 'admin']}>
+              <ProtectedRoute allowedRoles={['sales', 'admin', 'executive']}>
                 <SalesPage />
               </ProtectedRoute>
             } />
