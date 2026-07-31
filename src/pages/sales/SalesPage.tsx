@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../../config/supabase'
 import { useAuth } from '../../context/AuthContext'
-import { Users, ShoppingCart, TrendingUp, DollarSign, UserPlus, Package } from 'lucide-react'
+import { Users, ShoppingCart, TrendingUp, DollarSign, UserPlus, Package, CheckCircle, Play, Clock } from 'lucide-react'
 import AddCustomerModal from '../../components/AddCustomerModal'
 import AddSalesOrderModal from '../../components/AddSalesOrderModal'
 
@@ -36,7 +36,7 @@ interface SalesOrder {
 
 const SalesPage = () => {
   const { userRole } = useAuth()
-  const canModifySales = userRole === 'sales'
+  const canModifySales = userRole === 'sales_personnel' || userRole === 'sales' || userRole === 'admin'
 
   const [customers, setCustomers] = useState<Customer[]>([])
   const [orders, setOrders] = useState<SalesOrder[]>([])
@@ -73,6 +73,56 @@ const SalesPage = () => {
     fetchData()
   }, [])
 
+  // --- PROFESSIONAL STATUS UPDATE FUNCTION ---
+  const updateOrderStatus = async (orderId: string, newStatus: 'processing' | 'completed') => {
+    const actionText = newStatus === 'processing' ? 'start processing' : 'mark as completed';
+    if (!confirm(`Are you sure you want to ${actionText} this order?`)) {
+      return
+    }
+
+    try {
+      // 1. Update the Order Status
+      const { error: updateOrderError } = await supabase
+        .from('sales_orders')
+        .update({ status: newStatus })
+        .eq('id', orderId);
+      
+      if (updateOrderError) throw updateOrderError;
+
+      // 2. If Completed, Update Customer Stats in Database
+      if (newStatus === 'completed') {
+        const { data: orderData } = await supabase
+          .from('sales_orders')
+          .select('customer_id, total_amount')
+          .eq('id', orderId)
+          .single();
+
+        if (orderData?.customer_id) {
+          const { data: customerData } = await supabase
+            .from('customers')
+            .select('total_orders, total_spent')
+            .eq('id', orderData.customer_id)
+            .single();
+            
+          const newTotalOrders = (customerData?.total_orders || 0) + 1;
+          const newTotalSpent = (customerData?.total_spent || 0) + Number(orderData.total_amount);
+
+          await supabase
+            .from('customers')
+            .update({ total_orders: newTotalOrders, total_spent: newTotalSpent })
+            .eq('id', orderData.customer_id);
+        }
+      }
+      
+      await fetchData()
+      alert(`Order status updated to ${newStatus.toUpperCase()}!`)
+    } catch (error) {
+      console.error('Error updating status:', error)
+      alert('Failed to update order status')
+    }
+  }
+  // ---------------------------------------------
+
   const totalCustomers = customers.length
   const activeCustomers = customers.filter(c => c.status === 'active').length
   const totalOrders = orders.length
@@ -81,7 +131,11 @@ const SalesPage = () => {
     .reduce((sum, o) => sum + Number(o.total_amount), 0)
 
   const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount)
+    return new Intl.NumberFormat('en-ET', { 
+      style: 'currency', 
+      currency: 'ETB',
+      minimumFractionDigits: 2 
+    }).format(amount)
   }
 
   const getStatusBadge = (status: string) => {
@@ -137,7 +191,9 @@ const SalesPage = () => {
           </div>
           <p className="text-sm text-gray-500">Avg Order Value</p>
           <p className="text-2xl font-bold text-gray-900">
-            {totalOrders > 0 ? formatCurrency(totalRevenue / orders.filter(o => o.status === 'completed').length) : '$0.00'}
+            {totalOrders > 0 && orders.filter(o => o.status === 'completed').length > 0 
+              ? formatCurrency(totalRevenue / orders.filter(o => o.status === 'completed').length) 
+              : 'ETB 0.00'}
           </p>
           <p className="text-xs text-green-600 mt-1">↗ +8.2%</p>
         </div>
@@ -167,13 +223,16 @@ const SalesPage = () => {
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Product</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Amount</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                  {canModifySales && (
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+                  )}
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
                 {loading ? (
-                  <tr><td colSpan={5} className="px-6 py-8 text-center text-gray-500">Loading...</td></tr>
+                  <tr><td colSpan={canModifySales ? 6 : 5} className="px-6 py-8 text-center text-gray-500">Loading...</td></tr>
                 ) : orders.length === 0 ? (
-                  <tr><td colSpan={5} className="px-6 py-8 text-center text-gray-500">No orders yet</td></tr>
+                  <tr><td colSpan={canModifySales ? 6 : 5} className="px-6 py-8 text-center text-gray-500">No orders yet</td></tr>
                 ) : (
                   orders.slice(0, 5).map((order) => (
                     <tr key={order.id} className="hover:bg-gray-50">
@@ -189,6 +248,37 @@ const SalesPage = () => {
                           {order.status.charAt(0).toUpperCase() + order.status.slice(1)}
                         </span>
                       </td>
+                      {canModifySales && (
+                        <td className="px-6 py-4">
+                          {order.status === 'pending' && (
+                            <button
+                              onClick={() => updateOrderStatus(order.id, 'processing')}
+                              className="flex items-center px-3 py-1 text-xs font-medium text-white bg-blue-600 rounded hover:bg-blue-700 transition"
+                            >
+                              <Play className="w-3 h-3 mr-1" />
+                              Process
+                            </button>
+                          )}
+                          {order.status === 'processing' && (
+                            <button
+                              onClick={() => updateOrderStatus(order.id, 'completed')}
+                              className="flex items-center px-3 py-1 text-xs font-medium text-white bg-green-600 rounded hover:bg-green-700 transition"
+                            >
+                              <CheckCircle className="w-3 h-3 mr-1" />
+                              Complete
+                            </button>
+                          )}
+                          {order.status === 'completed' && (
+                            <span className="flex items-center px-2 py-1 text-xs font-medium text-green-700 bg-green-100 rounded w-fit">
+                              <CheckCircle className="w-3 h-3 mr-1" />
+                              Done
+                            </span>
+                          )}
+                          {order.status === 'cancelled' && (
+                            <span className="text-xs text-gray-400">-</span>
+                          )}
+                        </td>
+                      )}
                     </tr>
                   ))
                 )}
@@ -217,25 +307,34 @@ const SalesPage = () => {
             ) : customers.length === 0 ? (
               <div className="p-8 text-center text-gray-500">No customers yet</div>
             ) : (
-              customers.slice(0, 5).map((customer) => (
-                <div key={customer.id} className="p-4 hover:bg-gray-50">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center">
-                      <div className="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center text-white font-semibold text-sm mr-3">
-                        {customer.name.charAt(0).toUpperCase()}
+              customers.slice(0, 5).map((customer) => {
+                // --- DYNAMIC CALCULATION FIX ---
+                // Calculate stats directly from the orders list to ensure accuracy
+                const customerCompletedOrders = orders.filter(o => o.customer_id === customer.id && o.status === 'completed');
+                const dynamicTotalSpent = customerCompletedOrders.reduce((sum, o) => sum + Number(o.total_amount), 0);
+                const dynamicOrderCount = customerCompletedOrders.length;
+                // ---------------------------------
+
+                return (
+                  <div key={customer.id} className="p-4 hover:bg-gray-50">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center">
+                        <div className="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center text-white font-semibold text-sm mr-3">
+                          {customer.name.charAt(0).toUpperCase()}
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium text-gray-900">{customer.name}</p>
+                          <p className="text-xs text-gray-500">{customer.company || customer.email}</p>
+                        </div>
                       </div>
-                      <div>
-                        <p className="text-sm font-medium text-gray-900">{customer.name}</p>
-                        <p className="text-xs text-gray-500">{customer.company || customer.email}</p>
+                      <div className="text-right">
+                        <p className="text-sm font-medium text-gray-900">{formatCurrency(dynamicTotalSpent)}</p>
+                        <p className="text-xs text-gray-500">{dynamicOrderCount} orders</p>
                       </div>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-sm font-medium text-gray-900">{formatCurrency(Number(customer.total_spent))}</p>
-                      <p className="text-xs text-gray-500">{customer.total_orders} orders</p>
                     </div>
                   </div>
-                </div>
-              ))
+                );
+              })
             )}
           </div>
         </div>
