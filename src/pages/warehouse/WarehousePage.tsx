@@ -1,8 +1,11 @@
 /* eslint-disable react-hooks/set-state-in-effect */
 import { useState, useEffect } from 'react'
 import { supabase } from '../../config/supabase'
-import { Package, Truck, ArrowUpRight, AlertTriangle, Plus } from 'lucide-react'
+import { useAuth } from '../../context/AuthContext'
+import { Package, Truck, ArrowUpRight, AlertTriangle, Plus, Edit2 } from 'lucide-react'
 import AddInventoryModal from '../../components/AddInventoryModal'
+import EditInventoryModal from '../../components/EditInventoryModal'
+import AddShipmentModal from '../../components/AddShipmentModal'
 
 interface InventoryItem {
   id: string
@@ -25,11 +28,10 @@ interface Shipment {
   client: string | null
   notes: string | null
   created_at: string
-  inventory?: {
-    item_name: string
-  }
+  inventory?: { item_name: string }
 }
 
+// Interface for Material Requests
 interface MaterialRequest {
   id: string
   requested_by_name: string
@@ -42,41 +44,21 @@ interface MaterialRequest {
 }
 
 const WarehousePage = () => {
+  const { userRole } = useAuth()
+  
+  // Allow Storekeeper to edit. Executive Manager and Admin View-Only.
+  const canModifyWarehouse = userRole === 'storekeeper'
+
   const [inventory, setInventory] = useState<InventoryItem[]>([])
   const [shipments, setShipments] = useState<Shipment[]>([])
   const [pendingRequests, setPendingRequests] = useState<MaterialRequest[]>([])
   const [reqLoading, setReqLoading] = useState(false)
   const [loading, setLoading] = useState(true)
-  const [isModalOpen, setIsModalOpen] = useState(false)
-
-  const fetchData = async () => {
-    try {
-      const { data: inventoryData, error: inventoryError } = await supabase
-        .from('inventory')
-        .select('*')
-        .order('created_at', { ascending: false })
-
-      if (inventoryError) throw inventoryError
-      setInventory(inventoryData || [])
-
-      const { data: shipmentsData, error: shipmentsError } = await supabase
-        .from('shipments')
-        .select('*, inventory:item_id(item_name)')
-        .order('created_at', { ascending: false })
-        .limit(10)
-
-      if (shipmentsError) throw shipmentsError
-      setShipments(shipmentsData || [])
-
-      // Fetch pending material requests
-      await fetchPendingRequests()
-
-    } catch (error) {
-      console.error('Error fetching data:', error)
-    } finally {
-      setLoading(false)
-    }
-  }
+  
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false)
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false)
+  const [isShipmentModalOpen, setIsShipmentModalOpen] = useState(false)
+  const [editingItemId, setEditingItemId] = useState<string | null>(null)
 
   const fetchPendingRequests = async () => {
     try {
@@ -103,14 +85,41 @@ const WarehousePage = () => {
 
       if (error) throw error
       
-      // Refresh the list after action
       await fetchPendingRequests()
       alert(`Request ${action} successfully!`)
     } catch (error) {
       console.error('Error updating request:', error)
-      alert('Failed to update request')
     } finally {
       setReqLoading(false)
+    }
+  }
+
+  const fetchData = async () => {
+    try {
+      const { data: inventoryData, error: inventoryError } = await supabase
+        .from('inventory')
+        .select('*')
+        .order('created_at', { ascending: false })
+
+      if (inventoryError) throw inventoryError
+      setInventory(inventoryData || [])
+
+      const { data: shipmentsData, error: shipmentsError } = await supabase
+        .from('shipments')
+        .select('*, inventory:item_id(item_name)')
+        .order('created_at', { ascending: false })
+        .limit(10)
+
+      if (shipmentsError) throw shipmentsError
+      setShipments(shipmentsData || [])
+
+      // Fetch requests for the notification center
+      await fetchPendingRequests()
+
+    } catch (error) {
+      console.error('Error fetching data:', error)
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -119,9 +128,9 @@ const WarehousePage = () => {
   }, [])
 
   const totalItems = inventory.length
-  const itemsReceived = shipments.filter(s => s.type === 'inbound').length
-  const itemsShipped = shipments.filter(s => s.type === 'outbound').length
-  const lowStockItems = inventory.filter(item => item.quantity <= item.reorder_level).length
+  const itemsReceived = shipments.filter((s: Shipment) => s.type === 'inbound').length
+  const itemsShipped = shipments.filter((s: Shipment) => s.type === 'outbound').length
+  const lowStockItems = inventory.filter((item: InventoryItem) => item.quantity <= item.reorder_level).length
 
   const getStatusBadge = (item: InventoryItem) => {
     if (item.quantity === 0) {
@@ -132,6 +141,11 @@ const WarehousePage = () => {
     return <span className="px-2.5 py-1 text-xs font-medium rounded-full bg-green-100 text-green-700">In Stock</span>
   }
 
+  const handleEdit = (item: InventoryItem) => {
+    setEditingItemId(item.id)
+    setIsEditModalOpen(true)
+  }
+
   return (
     <div className="space-y-6">
       <div>
@@ -139,7 +153,7 @@ const WarehousePage = () => {
         <p className="mt-1 text-sm text-gray-500">Inventory management and shipment tracking</p>
       </div>
 
-      {/* --- STOREKEEPER NOTIFICATION CENTER --- */}
+      {/* --- STOREKEEPER NOTIFICATION CENTER (Visible to all, but only Storekeeper/Admin can act) --- */}
       <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-6">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-bold text-yellow-800 flex items-center gap-2">
@@ -173,20 +187,30 @@ const WarehousePage = () => {
                 </div>
                 
                 <div className="flex gap-2 w-full md:w-auto">
-                  <button 
-                    onClick={() => handleRequestAction(req.id, 'rejected')}
-                    disabled={reqLoading}
-                    className="flex-1 md:flex-none px-4 py-2 text-sm font-medium text-red-700 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 transition disabled:opacity-50"
-                  >
-                    Reject
-                  </button>
-                  <button 
-                    onClick={() => handleRequestAction(req.id, 'approved')}
-                    disabled={reqLoading}
-                    className="flex-1 md:flex-none px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 transition disabled:opacity-50"
-                  >
-                    Approve & Dispatch
-                  </button>
+                  {/* Only Show Buttons if User is Storekeeper or Admin */}
+                  {canModifyWarehouse ? (
+                    <>
+                      <button 
+                        onClick={() => handleRequestAction(req.id, 'rejected')}
+                        disabled={reqLoading}
+                        className="flex-1 md:flex-none px-4 py-2 text-sm font-medium text-red-700 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 transition disabled:opacity-50"
+                      >
+                        Reject
+                      </button>
+                      <button 
+                        onClick={() => handleRequestAction(req.id, 'approved')}
+                        disabled={reqLoading}
+                        className="flex-1 md:flex-none px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 transition disabled:opacity-50"
+                      >
+                        Approve & Dispatch
+                      </button>
+                    </>
+                  ) : (
+                    /* Show "View Only" badge for Executive Manager */
+                    <span className="px-3 py-2 text-xs font-medium text-gray-500 bg-gray-100 rounded-lg border border-gray-200">
+                      View Only (Executive Access)
+                    </span>
+                  )}
                 </div>
               </div>
             ))}
@@ -244,13 +268,25 @@ const WarehousePage = () => {
         <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
           <div className="p-4 border-b border-gray-200 flex items-center justify-between">
             <h2 className="text-lg font-semibold text-gray-900">Inventory Overview</h2>
-            <button 
-              onClick={() => setIsModalOpen(true)}
-              className="flex items-center px-3 py-1.5 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition"
-            >
-              <Plus className="w-4 h-4 mr-1" />
-              Add Item
-            </button>
+            {/* Only show Add/Shipment buttons if Storekeeper or Admin */}
+            {canModifyWarehouse && (
+              <div className="flex gap-2">
+                <button 
+                  onClick={() => setIsShipmentModalOpen(true)}
+                  className="flex items-center px-3 py-1.5 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 transition"
+                >
+                  <Truck className="w-4 h-4 mr-1" />
+                  Shipment
+                </button>
+                <button 
+                  onClick={() => setIsAddModalOpen(true)}
+                  className="flex items-center px-3 py-1.5 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition"
+                >
+                  <Plus className="w-4 h-4 mr-1" />
+                  Add Item
+                </button>
+              </div>
+            )}
           </div>
 
           <div className="overflow-x-auto">
@@ -261,23 +297,18 @@ const WarehousePage = () => {
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">SKU</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Quantity</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                  {canModifyWarehouse && (
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+                  )}
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
                 {loading ? (
-                  <tr>
-                    <td colSpan={4} className="px-6 py-8 text-center text-gray-500">
-                      Loading...
-                    </td>
-                  </tr>
+                  <tr><td colSpan={canModifyWarehouse ? 5 : 4} className="px-6 py-8 text-center text-gray-500">Loading...</td></tr>
                 ) : inventory.length === 0 ? (
-                  <tr>
-                    <td colSpan={4} className="px-6 py-8 text-center text-gray-500">
-                      No inventory items yet
-                    </td>
-                  </tr>
+                  <tr><td colSpan={canModifyWarehouse ? 5 : 4} className="px-6 py-8 text-center text-gray-500">No inventory items yet</td></tr>
                 ) : (
-                  inventory.slice(0, 5).map((item) => (
+                  inventory.slice(0, 5).map((item: InventoryItem) => (
                     <tr key={item.id} className="hover:bg-gray-50">
                       <td className="px-6 py-4 text-sm font-medium text-gray-900">{item.item_name}</td>
                       <td className="px-6 py-4 text-sm text-gray-500">{item.sku}</td>
@@ -286,6 +317,13 @@ const WarehousePage = () => {
                         <p className="text-xs text-gray-500">Reorder: {item.reorder_level} {item.unit}</p>
                       </td>
                       <td className="px-6 py-4">{getStatusBadge(item)}</td>
+                      {canModifyWarehouse && (
+                        <td className="px-6 py-4">
+                          <button onClick={() => handleEdit(item)} className="text-blue-600 hover:text-blue-800 text-sm font-medium">
+                            <Edit2 className="w-4 h-4" />
+                          </button>
+                        </td>
+                      )}
                     </tr>
                   ))
                 )}
@@ -305,7 +343,7 @@ const WarehousePage = () => {
             ) : shipments.length === 0 ? (
               <div className="p-8 text-center text-gray-500">No shipments yet</div>
             ) : (
-              shipments.slice(0, 5).map((shipment) => (
+              shipments.slice(0, 5).map((shipment: Shipment) => (
                 <div key={shipment.id} className="p-4 hover:bg-gray-50">
                   <div className="flex items-start justify-between">
                     <div className="flex items-start">
@@ -340,9 +378,20 @@ const WarehousePage = () => {
       </div>
 
       <AddInventoryModal
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
+        isOpen={isAddModalOpen}
+        onClose={() => setIsAddModalOpen(false)}
         onItemAdded={fetchData}
+      />
+      <EditInventoryModal
+        isOpen={isEditModalOpen}
+        onClose={() => setIsEditModalOpen(false)}
+        onItemUpdated={fetchData}
+        itemId={editingItemId}
+      />
+      <AddShipmentModal
+        isOpen={isShipmentModalOpen}
+        onClose={() => setIsShipmentModalOpen(false)}
+        onShipmentAdded={fetchData}
       />
     </div>
   )
