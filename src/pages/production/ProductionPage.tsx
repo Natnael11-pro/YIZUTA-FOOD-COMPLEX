@@ -29,24 +29,13 @@ interface Batch {
   created_at: string
 }
 
-interface MaterialRequest {
-  id: string
-  requested_by_name: string
-  material_name: string
-  quantity: number
-  unit: string
-  urgency: 'low' | 'medium' | 'high'
-  status: 'pending' | 'approved' | 'rejected'
-  created_at: string
-}
-
 const ProductionPage = () => {
   const { userRole } = useAuth()
   const canModifyProduction = userRole === 'production_manager'
 
   const [lines, setLines] = useState<ProductionLine[]>([])
   const [batches, setBatches] = useState<Batch[]>([])
-  const [requests, setRequests] = useState<MaterialRequest[]>([]) // New state for requests
+  const [requests, setRequests] = useState<any[]>([]) // New state for requests
   const [loading, setLoading] = useState(true)
   const [isBatchModalOpen, setIsBatchModalOpen] = useState(false)
   const [isLineModalOpen, setIsLineModalOpen] = useState(false)
