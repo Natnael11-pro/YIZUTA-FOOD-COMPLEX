@@ -11,3 +11,163 @@ body {
   -moz-osx-font-smoothing: grayscale;
   background-color: #f8fafc; /* Light gray background */
 }
+
+/* Gate Pass Print Styles */
+.gate-pass-container {
+  background: white;
+  padding: 40px;
+  max-width: 800px;
+  margin: 0 auto;
+  font-family: 'Times New Roman', serif;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  border: 2px solid #000;
+  padding: 15px;
+  margin-bottom: 20px;
+}
+
+.logo-section h1 {
+  margin: 0;
+  font-size: 24px;
+  font-weight: bold;
+}
+
+.logo-section p {
+  margin: 5px 0 0 0;
+  font-size: 14px;
+}
+
+.info-table {
+  width: 50%;
+  border-collapse: collapse;
+}
+
+.info-table td {
+  padding: 3px;
+  font-size: 12px;
+}
+
+.transport-info {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 20px;
+  padding: 10px;
+  border: 1px solid #000;
+}
+
+.transport-info .col {
+  width: 48%;
+}
+
+.transport-info p {
+  margin: 5px 0;
+  font-size: 14px;
+}
+
+.goods-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 20px 0;
+}
+
+.goods-table th,
+.goods-table td {
+  border: 1px solid black;
+  padding: 8px;
+  text-align: left;
+  font-size: 14px;
+}
+
+.goods-table th {
+  background-color: #f0f0f0;
+  font-weight: bold;
+}
+
+.signatures {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 50px;
+  margin-bottom: 30px;
+}
+
+.sig-box {
+  width: 30%;
+  border: 1px solid #000;
+  padding: 10px;
+  text-align: center;
+}
+
+.sig-box p {
+  margin: 5px 0;
+  font-size: 12px;
+}
+
+.gate-section {
+  border: 2px dashed black;
+  padding: 15px;
+  margin-top: 30px;
+}
+
+.gate-section h3 {
+  margin: 0 0 15px 0;
+  font-size: 14px;
+  text-transform: uppercase;
+}
+
+.gate-grid {
+  display: flex;
+  justify-content: space-between;
+}
+
+.gate-grid div {
+  width: 48%;
+}
+
+.gate-grid p {
+  margin: 8px 0;
+  font-size: 12px;
+}
+
+/* Print Media Query */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  
+  .gate-pass-container,
+  .gate-pass-container * {
+    visibility: visible;
+  }
+  
+  .gate-pass-container {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    margin: 0;
+    padding: 20px;
+    box-shadow: none;
+  }
+  
+  /* Hide sidebar and buttons during print */
+  .sidebar,
+  .no-print,
+  button,
+  nav {
+    display: none !important;
+  }
+  
+  /* Ensure black borders print */
+  .goods-table th,
+  .goods-table td,
+  .transport-info,
+  .sig-box,
+  .gate-section {
+    border: 1px solid #000 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+}
