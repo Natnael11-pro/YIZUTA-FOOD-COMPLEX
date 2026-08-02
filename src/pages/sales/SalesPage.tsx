@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../../config/supabase'
 import { useAuth } from '../../context/AuthContext'
-import { Users, ShoppingCart, TrendingUp, DollarSign, UserPlus, Package, CheckCircle, Play, Clock } from 'lucide-react'
+import { Users, ShoppingCart, TrendingUp, DollarSign, UserPlus, Package, Play, CheckCircle, Printer } from 'lucide-react'
 import AddCustomerModal from '../../components/AddCustomerModal'
 import AddSalesOrderModal from '../../components/AddSalesOrderModal'
 
@@ -28,6 +28,9 @@ interface SalesOrder {
   status: 'pending' | 'processing' | 'completed' | 'cancelled'
   order_date: string
   delivery_date: string | null
+  driver_name?: string
+  vehicle_plate_no?: string
+  quantity_unit?: string
   customers?: {
     name: string
     company: string | null
@@ -36,6 +39,7 @@ interface SalesOrder {
 
 const SalesPage = () => {
   const { userRole } = useAuth()
+  // Allow Sales Personnel and Admin to edit. Executive Manager is View-Only.
   const canModifySales = userRole === 'sales_personnel' || userRole === 'sales' || userRole === 'admin'
 
   const [customers, setCustomers] = useState<Customer[]>([])
@@ -73,44 +77,43 @@ const SalesPage = () => {
     fetchData()
   }, [])
 
-  // --- PROFESSIONAL STATUS UPDATE FUNCTION ---
+  // --- ORDER STATUS WORKFLOW ---
   const updateOrderStatus = async (orderId: string, newStatus: 'processing' | 'completed') => {
-    const actionText = newStatus === 'processing' ? 'start processing' : 'mark as completed';
+    const actionText = newStatus === 'processing' ? 'start processing' : 'mark as completed'
     if (!confirm(`Are you sure you want to ${actionText} this order?`)) {
       return
     }
 
     try {
-      // 1. Update the Order Status
       const { error: updateOrderError } = await supabase
         .from('sales_orders')
         .update({ status: newStatus })
-        .eq('id', orderId);
+        .eq('id', orderId)
       
-      if (updateOrderError) throw updateOrderError;
+      if (updateOrderError) throw updateOrderError
 
-      // 2. If Completed, Update Customer Stats in Database
+      // If completed, update customer stats
       if (newStatus === 'completed') {
         const { data: orderData } = await supabase
           .from('sales_orders')
           .select('customer_id, total_amount')
           .eq('id', orderId)
-          .single();
+          .single()
 
         if (orderData?.customer_id) {
           const { data: customerData } = await supabase
             .from('customers')
             .select('total_orders, total_spent')
             .eq('id', orderData.customer_id)
-            .single();
+            .single()
             
-          const newTotalOrders = (customerData?.total_orders || 0) + 1;
-          const newTotalSpent = (customerData?.total_spent || 0) + Number(orderData.total_amount);
+          const newTotalOrders = (customerData?.total_orders || 0) + 1
+          const newTotalSpent = (customerData?.total_spent || 0) + Number(orderData.total_amount)
 
           await supabase
             .from('customers')
             .update({ total_orders: newTotalOrders, total_spent: newTotalSpent })
-            .eq('id', orderData.customer_id);
+            .eq('id', orderData.customer_id)
         }
       }
       
@@ -121,8 +124,160 @@ const SalesPage = () => {
       alert('Failed to update order status')
     }
   }
-  // ---------------------------------------------
 
+  // --- GATE PASS GENERATION ---
+  const handleGenerateGatePass = (order: SalesOrder) => {
+    const printWindow = window.open('', '_blank')
+    if (!printWindow) {
+      alert('Please allow popups to print the gate pass')
+      return
+    }
+
+    const customer = customers.find(c => c.id === order.customer_id)
+    const currentDate = new Date().toLocaleDateString()
+
+    const gatePassHTML = `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Gate Pass - ${order.order_number}</title>
+          <style>
+            body { font-family: 'Times New Roman', serif; margin: 0; padding: 20px; }
+            .gate-pass-container { max-width: 800px; margin: 0 auto; padding: 40px; background: white; }
+            .header { display: flex; justify-content: space-between; border: 2px solid #000; padding: 15px; margin-bottom: 20px; }
+            .logo-section h1 { margin: 0; font-size: 24px; font-weight: bold; }
+            .logo-section p { margin: 5px 0 0 0; font-size: 14px; }
+            .info-table { width: 50%; border-collapse: collapse; }
+            .info-table td { padding: 3px; font-size: 12px; }
+            .transport-info { display: flex; justify-content: space-between; margin-bottom: 20px; padding: 10px; border: 1px solid #000; }
+            .transport-info .col { width: 48%; }
+            .transport-info p { margin: 5px 0; font-size: 14px; }
+            .goods-table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+            .goods-table th, .goods-table td { border: 1px solid black; padding: 8px; text-align: left; font-size: 14px; }
+            .goods-table th { background-color: #f0f0f0; font-weight: bold; }
+            .signatures { display: flex; justify-content: space-between; margin-top: 50px; margin-bottom: 30px; }
+            .sig-box { width: 30%; border: 1px solid #000; padding: 10px; text-align: center; }
+            .sig-box p { margin: 5px 0; font-size: 12px; }
+            .gate-section { border: 2px dashed black; padding: 15px; margin-top: 30px; }
+            .gate-section h3 { margin: 0 0 15px 0; font-size: 14px; text-transform: uppercase; }
+            .gate-grid { display: flex; justify-content: space-between; }
+            .gate-grid div { width: 48%; }
+            .gate-grid p { margin: 8px 0; font-size: 12px; }
+            .no-print { margin-top: 20px; text-align: center; }
+            .no-print button { padding: 10px 20px; font-size: 16px; cursor: pointer; margin: 0 10px; }
+            @media print {
+              body { margin: 0; padding: 0; }
+              .no-print { display: none; }
+            }
+          </style>
+        </head>
+        <body>
+          <div class="gate-pass-container">
+            <div class="header">
+              <div class="logo-section">
+                <h1>YIZUTA Food Complex</h1>
+                <p>Management System</p>
+              </div>
+              <div class="doc-info">
+                <table class="info-table">
+                  <tbody>
+                    <tr><td><strong>Document Title:</strong></td><td>DELIVERY NOTE & GATE PASS</td></tr>
+                    <tr><td><strong>Document No:</strong></td><td>GP-${order.order_number}</td></tr>
+                    <tr><td><strong>Date:</strong></td><td>${currentDate}</td></tr>
+                    <tr><td><strong>Page No:</strong></td><td>1 of 1</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <div class="transport-info">
+              <div class="col">
+                <p><strong>Customer:</strong> ${customer?.name || order.customers?.name || 'N/A'}</p>
+                <p><strong>Address:</strong> ${customer?.company || 'N/A'}</p>
+                <p><strong>Sales Order No:</strong> ${order.order_number}</p>
+              </div>
+              <div class="col">
+                <p><strong>Driver Name:</strong> ${order.driver_name || '________________'}</p>
+                <p><strong>Vehicle Plate No:</strong> ${order.vehicle_plate_no || '________________'}</p>
+                <p><strong>Mode of Transport:</strong> Road / Truck</p>
+              </div>
+            </div>
+
+            <h3>Please release the following goods:</h3>
+            <table class="goods-table">
+              <thead>
+                <tr>
+                  <th>S.No</th>
+                  <th>Product Type</th>
+                  <th>Description</th>
+                  <th>Quantity</th>
+                  <th>Unit</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>1</td>
+                  <td>Finished Good</td>
+                  <td>${order.product}</td>
+                  <td>${order.quantity}</td>
+                  <td>${order.quantity_unit || 'Boxes'}</td>
+                </tr>
+              </tbody>
+            </table>
+
+            <div class="signatures">
+              <div class="sig-box">
+                <p><strong>Prepared By (Sales):</strong></p>
+                <br />
+                <p>Sign: __________________</p>
+                <p>Date: ${currentDate}</p>
+              </div>
+              <div class="sig-box">
+                <p><strong>Issued By (Warehouse):</strong></p>
+                <br />
+                <p>Sign: __________________</p>
+                <p>Date: ${currentDate}</p>
+              </div>
+              <div class="sig-box">
+                <p><strong>Received By (Driver):</strong></p>
+                <br />
+                <p>Sign: __________________</p>
+                <p>Date: ${currentDate}</p>
+              </div>
+            </div>
+
+            <div class="gate-section">
+              <h3>FOR GATE KEEPER USE ONLY</h3>
+              <div class="gate-grid">
+                <div>
+                  <p><strong>Check In Time:</strong> ________________</p>
+                  <p><strong>Check Out Time:</strong> ________________</p>
+                </div>
+                <div>
+                  <p><strong>Gate Keeper Sign:</strong> __________________</p>
+                  <p><strong>Security Stamp:</strong></p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="no-print">
+            <button onclick="window.print()">Print Gate Pass</button>
+            <button onclick="window.close()">Close</button>
+          </div>
+
+          <script>
+            window.onload = function() { window.print(); }
+          </script>
+        </body>
+      </html>
+    `
+
+    printWindow.document.write(gatePassHTML)
+    printWindow.document.close()
+  }
+
+  // --- CALCULATIONS ---
   const totalCustomers = customers.length
   const activeCustomers = customers.filter(c => c.status === 'active').length
   const totalOrders = orders.length
@@ -250,33 +405,35 @@ const SalesPage = () => {
                       </td>
                       {canModifySales && (
                         <td className="px-6 py-4">
-                          {order.status === 'pending' && (
-                            <button
-                              onClick={() => updateOrderStatus(order.id, 'processing')}
-                              className="flex items-center px-3 py-1 text-xs font-medium text-white bg-blue-600 rounded hover:bg-blue-700 transition"
-                            >
-                              <Play className="w-3 h-3 mr-1" />
-                              Process
-                            </button>
-                          )}
-                          {order.status === 'processing' && (
-                            <button
-                              onClick={() => updateOrderStatus(order.id, 'completed')}
-                              className="flex items-center px-3 py-1 text-xs font-medium text-white bg-green-600 rounded hover:bg-green-700 transition"
-                            >
-                              <CheckCircle className="w-3 h-3 mr-1" />
-                              Complete
-                            </button>
-                          )}
-                          {order.status === 'completed' && (
-                            <span className="flex items-center px-2 py-1 text-xs font-medium text-green-700 bg-green-100 rounded w-fit">
-                              <CheckCircle className="w-3 h-3 mr-1" />
-                              Done
-                            </span>
-                          )}
-                          {order.status === 'cancelled' && (
-                            <span className="text-xs text-gray-400">-</span>
-                          )}
+                          <div className="flex gap-1">
+                            {order.status === 'pending' && (
+                              <button
+                                onClick={() => updateOrderStatus(order.id, 'processing')}
+                                className="flex items-center px-2 py-1 text-xs font-medium text-white bg-blue-600 rounded hover:bg-blue-700 transition"
+                              >
+                                <Play className="w-3 h-3 mr-1" />
+                                Process
+                              </button>
+                            )}
+                            {order.status === 'processing' && (
+                              <button
+                                onClick={() => updateOrderStatus(order.id, 'completed')}
+                                className="flex items-center px-2 py-1 text-xs font-medium text-white bg-green-600 rounded hover:bg-green-700 transition"
+                              >
+                                <CheckCircle className="w-3 h-3 mr-1" />
+                                Complete
+                              </button>
+                            )}
+                            {order.status === 'completed' && (
+                              <button
+                                onClick={() => handleGenerateGatePass(order)}
+                                className="flex items-center px-2 py-1 text-xs font-medium text-purple-600 bg-purple-50 hover:bg-purple-100 rounded transition"
+                              >
+                                <Printer className="w-3 h-3 mr-1" />
+                                Gate Pass
+                              </button>
+                            )}
+                          </div>
                         </td>
                       )}
                     </tr>
@@ -308,12 +465,9 @@ const SalesPage = () => {
               <div className="p-8 text-center text-gray-500">No customers yet</div>
             ) : (
               customers.slice(0, 5).map((customer) => {
-                // --- DYNAMIC CALCULATION FIX ---
-                // Calculate stats directly from the orders list to ensure accuracy
-                const customerCompletedOrders = orders.filter(o => o.customer_id === customer.id && o.status === 'completed');
-                const dynamicTotalSpent = customerCompletedOrders.reduce((sum, o) => sum + Number(o.total_amount), 0);
-                const dynamicOrderCount = customerCompletedOrders.length;
-                // ---------------------------------
+                const customerCompletedOrders = orders.filter(o => o.customer_id === customer.id && o.status === 'completed')
+                const dynamicTotalSpent = customerCompletedOrders.reduce((sum, o) => sum + Number(o.total_amount), 0)
+                const dynamicOrderCount = customerCompletedOrders.length
 
                 return (
                   <div key={customer.id} className="p-4 hover:bg-gray-50">
@@ -333,7 +487,7 @@ const SalesPage = () => {
                       </div>
                     </div>
                   </div>
-                );
+                )
               })
             )}
           </div>
