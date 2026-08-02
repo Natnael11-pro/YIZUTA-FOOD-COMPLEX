@@ -1,8 +1,8 @@
 /* eslint-disable react-hooks/set-state-in-effect */
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '../../config/supabase'
 import { useAuth } from '../../context/AuthContext'
-import { Activity, CheckCircle, TrendingUp, Zap, Package, Plus, Send } from 'lucide-react'
+import { Activity, CheckCircle, TrendingUp, Zap, Package, Plus, Send, RefreshCw, Trash2, AlertTriangle } from 'lucide-react'
 import AddBatchModal from '../../components/AddBatchModal'
 import AddProductionLineModal from '../../components/AddProductionLineModal'
 import RequestMaterialModal from '../../components/RequestMaterialModal'
@@ -26,6 +26,18 @@ interface Batch {
   quantity: number
   status: 'in_progress' | 'quality_check' | 'completed'
   quality_status: 'pass' | 'fail' | 'pending'
+  disposition?: 'rework' | 'scrap' | 'downgrade' | null
+  created_at: string
+}
+
+interface MaterialRequest {
+  id: string
+  requested_by_name: string
+  material_name: string
+  quantity: number
+  unit: string
+  urgency: 'low' | 'medium' | 'high'
+  status: 'pending' | 'approved' | 'rejected'
   created_at: string
 }
 
@@ -35,13 +47,13 @@ const ProductionPage = () => {
 
   const [lines, setLines] = useState<ProductionLine[]>([])
   const [batches, setBatches] = useState<Batch[]>([])
-  const [requests, setRequests] = useState<any[]>([]) // New state for requests
+  const [requests, setRequests] = useState<MaterialRequest[]>([])
   const [loading, setLoading] = useState(true)
   const [isBatchModalOpen, setIsBatchModalOpen] = useState(false)
   const [isLineModalOpen, setIsLineModalOpen] = useState(false)
-  const [isRequestModalOpen, setIsRequestModalOpen] = useState(false) // New state for modal
+  const [isRequestModalOpen, setIsRequestModalOpen] = useState(false)
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     try {
       // 1. Fetch Production Lines
       const { data: linesData, error: linesError } = await supabase
@@ -62,7 +74,7 @@ const ProductionPage = () => {
       if (batchesError) throw batchesError
       setBatches(batchesData || [])
 
-      // 3. Fetch Material Requests (NEW)
+      // 3. Fetch Material Requests
       const { data: requestData, error: requestError } = await supabase
         .from('material_requests')
         .select('*')
@@ -77,11 +89,105 @@ const ProductionPage = () => {
     } finally {
       setLoading(false)
     }
-  }
+  }, [])
 
   useEffect(() => {
     fetchData()
-  }, [])
+  }, [fetchData])
+
+  // Handle sending reworked batch to quality check
+  const handleSendToQualityCheck = async (batchId: string) => {
+    if (!confirm('Send this batch for quality check?')) {
+      return
+    }
+
+    try {
+      const { error } = await supabase
+        .from('batches')
+        .update({ 
+          status: 'quality_check',
+          quality_status: 'pending'
+        })
+        .eq('id', batchId)
+
+      if (error) throw error
+
+      await fetchData()
+      alert('Batch sent to quality check!')
+    } catch (error) {
+      console.error('Error sending to quality check:', error)
+      alert('Failed to send to quality check')
+    }
+  }
+
+  // Handle quality check approval/rejection
+  const handleQualityCheck = async (batchId: string, qualityStatus: 'pass' | 'fail') => {
+    if (!confirm(`Mark this batch as ${qualityStatus.toUpperCase()}?`)) {
+      return
+    }
+
+    try {
+      const { error } = await supabase
+        .from('batches')
+        .update({ 
+          status: 'completed',
+          quality_status: qualityStatus
+        })
+        .eq('id', batchId)
+
+      if (error) throw error
+
+      await fetchData()
+      alert(`Batch marked as ${qualityStatus.toUpperCase()}!`)
+    } catch (error) {
+      console.error('Error updating quality:', error)
+      alert('Failed to update quality status')
+    }
+  }
+
+  // Handle Batch Disposition
+  const handleBatchDisposition = async (batchId: string, disposition: 'rework' | 'scrap' | 'downgrade') => {
+    if (!confirm(`Are you sure you want to mark this batch as ${disposition.toUpperCase()}?`)) {
+      return
+    }
+
+    try {
+      const dispositionValue: string = disposition
+      let statusValue: string = ''
+      let qualityStatusValue: string = ''
+
+      if (disposition === 'rework') {
+        statusValue = 'in_progress'
+        qualityStatusValue = 'pending'
+      } else if (disposition === 'scrap') {
+        statusValue = 'completed'
+        qualityStatusValue = 'fail'
+      } else if (disposition === 'downgrade') {
+        statusValue = 'completed'
+        qualityStatusValue = 'pass'
+      }
+
+      const { error } = await supabase
+        .from('batches')
+        .update({ 
+          disposition: dispositionValue,
+          status: statusValue,
+          quality_status: qualityStatusValue
+        })
+        .eq('id', batchId)
+
+      if (error) {
+        console.error('Supabase error:', error)
+        throw error
+      }
+
+      await fetchData()
+      alert(`Batch marked as ${disposition.toUpperCase()} successfully!`)
+    } catch (error) {
+      console.error('Error updating batch disposition:', error)
+      alert('Failed to update batch disposition')
+    }
+  }
 
   const unitsToday = batches.reduce((sum, b) => sum + b.quantity, 0)
   const completedBatches = batches.filter(b => b.status === 'completed' && b.quality_status === 'pass').length
@@ -113,6 +219,16 @@ const ProductionPage = () => {
       pending: 'bg-gray-100 text-gray-700',
     }
     return colors[status] || 'bg-gray-100 text-gray-700'
+  }
+
+  const getDispositionBadge = (disposition: string | null | undefined) => {
+    if (!disposition) return null
+    const colors: Record<string, string> = {
+      rework: 'bg-orange-100 text-orange-700',
+      scrap: 'bg-red-100 text-red-700',
+      downgrade: 'bg-yellow-100 text-yellow-700',
+    }
+    return colors[disposition] || 'bg-gray-100 text-gray-700'
   }
 
   return (
@@ -252,13 +368,17 @@ const ProductionPage = () => {
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Quantity</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Quality</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Disposition</th>
+                  {canModifyProduction && (
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+                  )}
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
                 {loading ? (
-                  <tr><td colSpan={5} className="px-6 py-8 text-center text-gray-500">Loading...</td></tr>
+                  <tr><td colSpan={canModifyProduction ? 7 : 6} className="px-6 py-8 text-center text-gray-500">Loading...</td></tr>
                 ) : batches.length === 0 ? (
-                  <tr><td colSpan={5} className="px-6 py-8 text-center text-gray-500">No batches yet</td></tr>
+                  <tr><td colSpan={canModifyProduction ? 7 : 6} className="px-6 py-8 text-center text-gray-500">No batches yet</td></tr>
                 ) : (
                   batches.slice(0, 5).map((batch) => (
                     <tr key={batch.id} className="hover:bg-gray-50">
@@ -275,6 +395,96 @@ const ProductionPage = () => {
                           {batch.quality_status.charAt(0).toUpperCase() + batch.quality_status.slice(1)}
                         </span>
                       </td>
+                      <td className="px-6 py-4">
+                        {batch.disposition ? (
+                          <span className={`px-2.5 py-1 text-xs font-medium rounded-full ${getDispositionBadge(batch.disposition)}`}>
+                            {batch.disposition.charAt(0).toUpperCase() + batch.disposition.slice(1)}
+                          </span>
+                        ) : (
+                          <span className="text-xs text-gray-400">-</span>
+                        )}
+                      </td>
+                      {canModifyProduction && (
+  <td className="px-6 py-4">
+    {/* 1. Initial Quality Check (Completed but Pending Quality) */}
+    {batch.status === 'completed' && batch.quality_status === 'pending' && !batch.disposition && (
+      <div className="flex gap-1">
+        <button
+          onClick={() => handleQualityCheck(batch.id, 'pass')}
+          className="px-2 py-1 text-xs font-medium text-green-600 bg-green-50 hover:bg-green-100 rounded"
+        >
+          Pass
+        </button>
+        <button
+          onClick={() => handleQualityCheck(batch.id, 'fail')}
+          className="px-2 py-1 text-xs font-medium text-red-600 bg-red-50 hover:bg-red-100 rounded"
+        >
+          Fail
+        </button>
+      </div>
+    )}
+
+    {/* 2. Failed Batch - Needs Disposition (Rework/Scrap/Downgrade) */}
+    {batch.status === 'completed' && batch.quality_status === 'fail' && !batch.disposition && (
+      <div className="flex gap-1">
+        <button
+          onClick={() => handleBatchDisposition(batch.id, 'rework')}
+          className="p-1 text-orange-600 hover:bg-orange-50 rounded"
+          title="Rework"
+        >
+          <RefreshCw className="w-4 h-4" />
+        </button>
+        <button
+          onClick={() => handleBatchDisposition(batch.id, 'scrap')}
+          className="p-1 text-red-600 hover:bg-red-50 rounded"
+          title="Scrap"
+        >
+          <Trash2 className="w-4 h-4" />
+        </button>
+        <button
+          onClick={() => handleBatchDisposition(batch.id, 'downgrade')}
+          className="p-1 text-yellow-600 hover:bg-yellow-50 rounded"
+          title="Downgrade"
+        >
+          <AlertTriangle className="w-4 h-4" />
+        </button>
+      </div>
+    )}
+
+    {/* 3. Rework in Progress - Send to QC (Fixes the unused variable error) */}
+    {batch.disposition === 'rework' && batch.status === 'in_progress' && (
+      <button
+        onClick={() => handleSendToQualityCheck(batch.id)}
+        className="px-2 py-1 text-xs font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 rounded"
+      >
+        Send to QC
+      </button>
+    )}
+
+    {/* 4. Reworked Batch in Quality Check - Pass/Fail again */}
+    {batch.disposition === 'rework' && batch.status === 'quality_check' && (
+      <div className="flex gap-1">
+        <button
+          onClick={() => handleQualityCheck(batch.id, 'pass')}
+          className="px-2 py-1 text-xs font-medium text-green-600 bg-green-50 hover:bg-green-100 rounded"
+        >
+          Pass
+        </button>
+        <button
+          onClick={() => handleQualityCheck(batch.id, 'fail')}
+          className="px-2 py-1 text-xs font-medium text-red-600 bg-red-50 hover:bg-red-100 rounded"
+        >
+          Fail
+        </button>
+      </div>
+    )}
+
+    {/* 5. Finalized Dispositions (Scrap or Downgrade) */}
+    {(batch.disposition === 'scrap' || batch.disposition === 'downgrade') && (
+      <span className="text-xs text-gray-400">Processed</span>
+    )}
+  </td>
+)}
                     </tr>
                   ))
                 )}
@@ -322,7 +532,7 @@ const ProductionPage = () => {
         </div>
       </div>
 
-      {/* Material Requests Section (NEW) */}
+      {/* Material Requests Section */}
       <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
         <div className="p-4 border-b border-gray-200">
           <h2 className="text-lg font-semibold text-gray-900">My Material Requests</h2>
