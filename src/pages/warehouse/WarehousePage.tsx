@@ -1,5 +1,5 @@
 /* eslint-disable react-hooks/set-state-in-effect */
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '../../config/supabase'
 import { useAuth } from '../../context/AuthContext'
 import { Package, Truck, ArrowUpRight, AlertTriangle, Plus, Edit2 } from 'lucide-react'
@@ -31,7 +31,6 @@ interface Shipment {
   inventory?: { item_name: string }
 }
 
-// Interface for Material Requests
 interface MaterialRequest {
   id: string
   requested_by_name: string
@@ -46,7 +45,7 @@ interface MaterialRequest {
 const WarehousePage = () => {
   const { userRole } = useAuth()
   
-  // Allow Storekeeper to edit. Executive Manager and Admin View-Only.
+  // Only Storekeeper can edit. Admin and Executive Manager are View-Only.
   const canModifyWarehouse = userRole === 'storekeeper'
 
   const [inventory, setInventory] = useState<InventoryItem[]>([])
@@ -60,7 +59,7 @@ const WarehousePage = () => {
   const [isShipmentModalOpen, setIsShipmentModalOpen] = useState(false)
   const [editingItemId, setEditingItemId] = useState<string | null>(null)
 
-  const fetchPendingRequests = async () => {
+  const fetchPendingRequests = useCallback(async () => {
     try {
       const { data, error } = await supabase
         .from('material_requests')
@@ -73,7 +72,7 @@ const WarehousePage = () => {
     } catch (error) {
       console.error('Error fetching requests:', error)
     }
-  }
+  }, [])
 
   const handleRequestAction = async (id: string, action: 'approved' | 'rejected') => {
     setReqLoading(true)
@@ -94,7 +93,7 @@ const WarehousePage = () => {
     }
   }
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     try {
       const { data: inventoryData, error: inventoryError } = await supabase
         .from('inventory')
@@ -121,11 +120,11 @@ const WarehousePage = () => {
     } finally {
       setLoading(false)
     }
-  }
+  }, [fetchPendingRequests])
 
   useEffect(() => {
     fetchData()
-  }, [])
+  }, [fetchData])
 
   const totalItems = inventory.length
   const itemsReceived = shipments.filter((s: Shipment) => s.type === 'inbound').length
@@ -153,7 +152,7 @@ const WarehousePage = () => {
         <p className="mt-1 text-sm text-gray-500">Inventory management and shipment tracking</p>
       </div>
 
-      {/* --- STOREKEEPER NOTIFICATION CENTER (Visible to all, but only Storekeeper/Admin can act) --- */}
+      {/* --- STOREKEEPER NOTIFICATION CENTER --- */}
       <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-6">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-bold text-yellow-800 flex items-center gap-2">
@@ -187,7 +186,6 @@ const WarehousePage = () => {
                 </div>
                 
                 <div className="flex gap-2 w-full md:w-auto">
-                  {/* Only Show Buttons if User is Storekeeper or Admin */}
                   {canModifyWarehouse ? (
                     <>
                       <button 
@@ -206,9 +204,8 @@ const WarehousePage = () => {
                       </button>
                     </>
                   ) : (
-                    /* Show "View Only" badge for Executive Manager */
                     <span className="px-3 py-2 text-xs font-medium text-gray-500 bg-gray-100 rounded-lg border border-gray-200">
-                      View Only (Executive Access)
+                      View Only (Executive/Admin Access)
                     </span>
                   )}
                 </div>
@@ -268,7 +265,6 @@ const WarehousePage = () => {
         <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
           <div className="p-4 border-b border-gray-200 flex items-center justify-between">
             <h2 className="text-lg font-semibold text-gray-900">Inventory Overview</h2>
-            {/* Only show Add/Shipment buttons if Storekeeper or Admin */}
             {canModifyWarehouse && (
               <div className="flex gap-2">
                 <button 
