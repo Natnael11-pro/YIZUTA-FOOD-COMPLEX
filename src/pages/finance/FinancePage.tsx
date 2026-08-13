@@ -125,7 +125,7 @@ const FinancePage = () => {
         <div className="p-6 bg-white border border-gray-200 rounded-xl">
           <div className="flex items-center justify-between mb-2">
             <p className="text-sm text-gray-500">Total Revenue</p>
-            <TrendingUp className="w-4 h-4 text-green-600" />
+            <TrendingUp className="w-4 h-4 text-green-600" aria-hidden="true" />
           </div>
           <p className="text-2xl font-bold text-gray-900">{formatCurrency(totalRevenue)}</p>
           <p className="text-xs text-green-600 mt-1">Auto-synced from Sales</p>
@@ -134,7 +134,7 @@ const FinancePage = () => {
         <div className="p-6 bg-white border border-gray-200 rounded-xl">
           <div className="flex items-center justify-between mb-2">
             <p className="text-sm text-gray-500">Total Expenses</p>
-            <TrendingDown className="w-4 h-4 text-red-600" />
+            <TrendingDown className="w-4 h-4 text-red-600" aria-hidden="true" />
           </div>
           <p className="text-2xl font-bold text-gray-900">{formatCurrency(totalExpenses)}</p>
         </div>
@@ -142,7 +142,7 @@ const FinancePage = () => {
         <div className="p-6 bg-white border border-gray-200 rounded-xl">
           <div className="flex items-center justify-between mb-2">
             <p className="text-sm text-gray-500">Net Profit</p>
-            <TrendingUp className="w-4 h-4 text-blue-600" />
+            <TrendingUp className="w-4 h-4 text-blue-600" aria-hidden="true" />
           </div>
           <p className={`text-2xl font-bold ${netProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
             {formatCurrency(netProfit)}
@@ -152,7 +152,7 @@ const FinancePage = () => {
         <div className="p-6 bg-white border border-gray-200 rounded-xl">
           <div className="flex items-center justify-between mb-2">
             <p className="text-sm text-gray-500">Pending Revenue</p>
-            <Clock className="w-4 h-4 text-yellow-600" />
+            <Clock className="w-4 h-4 text-yellow-600" aria-hidden="true" />
           </div>
           <p className="text-2xl font-bold text-gray-900">{formatCurrency(pendingRevenue)}</p>
           <p className="text-xs text-yellow-600 mt-1">Unfulfilled Sales Orders</p>
@@ -166,6 +166,7 @@ const FinancePage = () => {
             {canModifyFinance && (
               <button 
                 onClick={() => setIsModalOpen(true)} 
+                aria-label="Add new financial transaction"
                 className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition"
               >
                 New Transaction
@@ -177,12 +178,13 @@ const FinancePage = () => {
             <table className="w-full">
               <thead className="bg-gray-50 border-b border-gray-200">
                 <tr>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Category</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Description</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Amount</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+                  {/* ✅ ACCESSIBILITY: Added scope="col" to all table headers */}
+                  <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
+                  <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Category</th>
+                  <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Description</th>
+                  <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Amount</th>
+                  <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
+                  <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
@@ -218,21 +220,24 @@ const FinancePage = () => {
                             <>
                               <button 
                                 onClick={() => handleEdit(t)} 
+                                aria-label={`Edit transaction: ${t.description}`}
                                 className="p-1.5 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition" 
                                 title="Edit"
                               >
-                                <Edit2 className="w-4 h-4" />
+                                <Edit2 className="w-4 h-4" aria-hidden="true" />
                               </button>
                               {deleteConfirmId === t.id ? (
                                 <div className="flex items-center space-x-1">
                                   <button 
                                     onClick={() => handleDelete(t.id)} 
+                                    aria-label="Confirm deletion"
                                     className="px-2 py-1 text-xs text-white bg-red-600 rounded hover:bg-red-700"
                                   >
                                     Yes
                                   </button>
                                   <button 
                                     onClick={() => setDeleteConfirmId(null)} 
+                                    aria-label="Cancel deletion"
                                     className="px-2 py-1 text-xs text-gray-600 bg-gray-100 rounded hover:bg-gray-200"
                                   >
                                     No
@@ -241,10 +246,11 @@ const FinancePage = () => {
                               ) : (
                                 <button 
                                   onClick={() => setDeleteConfirmId(t.id)} 
+                                  aria-label={`Delete transaction: ${t.description}`}
                                   className="p-1.5 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition" 
                                   title="Delete"
                                 >
-                                  <Trash2 className="w-4 h-4" />
+                                  <Trash2 className="w-4 h-4" aria-hidden="true" />
                                 </button>
                               )}
                             </>
