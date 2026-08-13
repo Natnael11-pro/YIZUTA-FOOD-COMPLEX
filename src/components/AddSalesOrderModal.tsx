@@ -38,12 +38,11 @@ const AddSalesOrderModal = ({ isOpen, onClose, onOrderAdded }: AddSalesOrderModa
   const [driverName, setDriverName] = useState('')
   const [vehiclePlateNo, setVehiclePlateNo] = useState('')
 
-  // ✅ FIX: Use useMemo for derived state to prevent useEffect setState warnings
   const filteredProducts = useMemo(() => {
     if (product.length > 0) {
       return inventoryItems.filter(item => 
         item.item_name.toLowerCase().includes(product.toLowerCase()) &&
-        item.quantity > 0 // Only show items with stock
+        item.quantity > 0
       )
     }
     return []
@@ -53,19 +52,16 @@ const AddSalesOrderModal = ({ isOpen, onClose, onOrderAdded }: AddSalesOrderModa
 
   useEffect(() => {
     if (isOpen) {
-      // Fetch customers
       supabase.from('customers').select('id, name, company').then(({ data }) => {
         if (data) setCustomers(data as Customer[])
       })
       
-      // Fetch available inventory items
       supabase.from('inventory').select('item_name, quantity, unit').then(({ data }) => {
         if (data) setInventoryItems(data as InventoryItem[])
       })
     }
   }, [isOpen])
 
-  // Check stock when product is selected
   useEffect(() => {
     const checkStock = async () => {
       if (!product) {
@@ -95,7 +91,6 @@ const AddSalesOrderModal = ({ isOpen, onClose, onOrderAdded }: AddSalesOrderModa
       }
     }
 
-    // Debounce the check to avoid excessive database queries while typing
     const timer = setTimeout(() => {
       checkStock()
     }, 500)
@@ -143,7 +138,6 @@ const AddSalesOrderModal = ({ isOpen, onClose, onOrderAdded }: AddSalesOrderModa
       onOrderAdded()
       onClose()
       
-      // Reset form fields
       setCustomerId('')
       setProduct('')
       setQuantity('')
@@ -165,27 +159,35 @@ const AddSalesOrderModal = ({ isOpen, onClose, onOrderAdded }: AddSalesOrderModa
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+    // ✅ ACCESSIBILITY: Added modal semantics
+    <div 
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="add-sales-order-modal-title"
+    >
       <div className="bg-white rounded-xl shadow-xl w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between p-6 border-b border-gray-200 sticky top-0 bg-white z-10">
-          <h2 className="text-xl font-semibold text-gray-900">Create Sales Order</h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition">
-            <X className="w-5 h-5" />
+          <h2 id="add-sales-order-modal-title" className="text-xl font-semibold text-gray-900">Create Sales Order</h2>
+          <button onClick={onClose} aria-label="Close modal" className="text-gray-400 hover:text-gray-600 transition">
+            <X className="w-5 h-5" aria-hidden="true" />
           </button>
         </div>
 
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           {error && (
-            <div className="p-3 bg-red-50 border border-red-200 text-red-600 text-sm rounded-lg">{error}</div>
+            <div className="p-3 bg-red-50 border border-red-200 text-red-600 text-sm rounded-lg" role="alert">{error}</div>
           )}
 
           <div>
-            <label className="block mb-1.5 text-sm font-medium text-gray-700">Customer</label>
+            <label htmlFor="sales-customer" className="block mb-1.5 text-sm font-medium text-gray-700">Customer</label>
             <select 
+              id="sales-customer"
               value={customerId} 
               onChange={(e) => setCustomerId(e.target.value)} 
               className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" 
               required
+              aria-required="true"
             >
               <option value="">Select a customer...</option>
               {customers.map((c) => (
@@ -195,17 +197,18 @@ const AddSalesOrderModal = ({ isOpen, onClose, onOrderAdded }: AddSalesOrderModa
           </div>
 
           <div className="relative">
-            <label className="block mb-1.5 text-sm font-medium text-gray-700">Product Name</label>
+            <label htmlFor="sales-product" className="block mb-1.5 text-sm font-medium text-gray-700">Product Name</label>
             <input 
+              id="sales-product"
               type="text" 
               value={product} 
               onChange={(e) => setProduct(e.target.value)} 
               className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" 
               placeholder="Type to search products..."
               required 
+              aria-required="true"
             />
             
-            {/* Product Suggestions Dropdown */}
             {showProductSuggestions && (
               <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-y-auto">
                 {filteredProducts.map((item, index) => (
@@ -224,9 +227,8 @@ const AddSalesOrderModal = ({ isOpen, onClose, onOrderAdded }: AddSalesOrderModa
               </div>
             )}
             
-            {/* Real-time stock feedback */}
             {product && !showProductSuggestions && (
-              <p className={`text-xs mt-1 font-medium ${stockError ? 'text-red-600' : 'text-green-600'}`}>
+              <p className={`text-xs mt-1 font-medium ${stockError ? 'text-red-600' : 'text-green-600'}`} role="status">
                 {stockError ? stockError : `✓ Available in stock: ${availableStock} ${quantityUnit}`}
               </p>
             )}
@@ -234,8 +236,9 @@ const AddSalesOrderModal = ({ isOpen, onClose, onOrderAdded }: AddSalesOrderModa
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block mb-1.5 text-sm font-medium text-gray-700">Quantity</label>
+              <label htmlFor="sales-quantity" className="block mb-1.5 text-sm font-medium text-gray-700">Quantity</label>
               <input 
+                id="sales-quantity"
                 type="number" 
                 value={quantity} 
                 onChange={(e) => setQuantity(e.target.value)} 
@@ -243,11 +246,13 @@ const AddSalesOrderModal = ({ isOpen, onClose, onOrderAdded }: AddSalesOrderModa
                   stockError ? 'border-red-300 focus:ring-red-500 bg-red-50' : 'border-gray-300 focus:ring-blue-500'
                 }`} 
                 required 
+                aria-required="true"
               />
             </div>
             <div>
-              <label className="block mb-1.5 text-sm font-medium text-gray-700">Unit</label>
+              <label htmlFor="sales-unit" className="block mb-1.5 text-sm font-medium text-gray-700">Unit</label>
               <input 
+                id="sales-unit"
                 type="text" 
                 value={quantityUnit} 
                 onChange={(e) => setQuantityUnit(e.target.value)} 
@@ -258,31 +263,36 @@ const AddSalesOrderModal = ({ isOpen, onClose, onOrderAdded }: AddSalesOrderModa
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block mb-1.5 text-sm font-medium text-gray-700">Unit Price (ETB)</label>
+              <label htmlFor="sales-price" className="block mb-1.5 text-sm font-medium text-gray-700">Unit Price (ETB)</label>
               <input 
+                id="sales-price"
                 type="number" 
                 step="0.01" 
                 value={unitPrice} 
                 onChange={(e) => setUnitPrice(e.target.value)} 
                 className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" 
                 required 
+                aria-required="true"
               />
             </div>
             <div>
-              <label className="block mb-1.5 text-sm font-medium text-gray-700">Order Date</label>
+              <label htmlFor="sales-date" className="block mb-1.5 text-sm font-medium text-gray-700">Order Date</label>
               <input 
+                id="sales-date"
                 type="date" 
                 value={orderDate} 
                 onChange={(e) => setOrderDate(e.target.value)} 
                 className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" 
                 required 
+                aria-required="true"
               />
             </div>
           </div>
 
           <div>
-            <label className="block mb-1.5 text-sm font-medium text-gray-700">Status</label>
+            <label htmlFor="sales-status" className="block mb-1.5 text-sm font-medium text-gray-700">Status</label>
             <select 
+              id="sales-status"
               value={status} 
               onChange={(e) => setStatus(e.target.value)} 
               className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -297,8 +307,9 @@ const AddSalesOrderModal = ({ isOpen, onClose, onOrderAdded }: AddSalesOrderModa
             <h3 className="text-sm font-semibold text-gray-900 mb-3">Delivery Details (For Gate Pass)</h3>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block mb-1.5 text-sm font-medium text-gray-700">Driver Name</label>
+                <label htmlFor="sales-driver" className="block mb-1.5 text-sm font-medium text-gray-700">Driver Name</label>
                 <input 
+                  id="sales-driver"
                   type="text" 
                   value={driverName} 
                   onChange={(e) => setDriverName(e.target.value)} 
@@ -307,8 +318,9 @@ const AddSalesOrderModal = ({ isOpen, onClose, onOrderAdded }: AddSalesOrderModa
                 />
               </div>
               <div>
-                <label className="block mb-1.5 text-sm font-medium text-gray-700">Vehicle Plate No.</label>
+                <label htmlFor="sales-plate" className="block mb-1.5 text-sm font-medium text-gray-700">Vehicle Plate No.</label>
                 <input 
+                  id="sales-plate"
                   type="text" 
                   value={vehiclePlateNo} 
                   onChange={(e) => setVehiclePlateNo(e.target.value)} 
@@ -330,6 +342,7 @@ const AddSalesOrderModal = ({ isOpen, onClose, onOrderAdded }: AddSalesOrderModa
             <button 
               type="submit" 
               disabled={loading || !!stockError} 
+              aria-label={loading ? 'Creating order' : 'Create sales order'}
               className={`px-4 py-2 text-sm font-medium text-white rounded-lg transition ${
                 stockError 
                   ? 'bg-gray-400 cursor-not-allowed' 
