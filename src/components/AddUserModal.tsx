@@ -69,52 +69,65 @@ const AddUserModal = ({ isOpen, onClose, onUserAdded }: AddUserModalProps) => {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+    // ✅ ACCESSIBILITY: Added role, aria-modal, and aria-labelledby for modal semantics
+    <div 
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="add-user-modal-title"
+    >
       <div className="bg-white rounded-xl shadow-xl w-full max-w-md mx-4">
         <div className="flex items-center justify-between p-6 border-b border-gray-200">
-          <h2 className="text-xl font-semibold text-gray-900">Add New User</h2>
+          <h2 id="add-user-modal-title" className="text-xl font-semibold text-gray-900">Add New User</h2>
           <button
             onClick={onClose}
+            aria-label="Close modal"
             className="text-gray-400 hover:text-gray-600 transition"
           >
-            <X className="w-5 h-5" />
+            <X className="w-5 h-5" aria-hidden="true" />
           </button>
         </div>
 
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           {error && (
-            <div className="p-3 bg-red-50 border border-red-200 text-red-600 text-sm rounded-lg">
+            <div className="p-3 bg-red-50 border border-red-200 text-red-600 text-sm rounded-lg" role="alert">
               {error}
             </div>
           )}
 
           <div>
-            <label className="block mb-1.5 text-sm font-medium text-gray-700">Full Name</label>
+            <label htmlFor="full-name" className="block mb-1.5 text-sm font-medium text-gray-700">Full Name</label>
             <input
+              id="full-name"
               type="text"
               value={fullName}
               onChange={(e) => setFullName(e.target.value)}
               placeholder="John Doe"
               className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               required
+              aria-required="true"
             />
           </div>
 
           <div>
-            <label className="block mb-1.5 text-sm font-medium text-gray-700">Email Address</label>
+            <label htmlFor="email-address" className="block mb-1.5 text-sm font-medium text-gray-700">Email Address</label>
             <input
+              id="email-address"
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="user@yizuta.com"
               className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               required
+              aria-required="true"
+              autoComplete="email"
             />
           </div>
 
           <div>
-            <label className="block mb-1.5 text-sm font-medium text-gray-700">Password</label>
+            <label htmlFor="password" className="block mb-1.5 text-sm font-medium text-gray-700">Password</label>
             <input
+              id="password"
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
@@ -122,16 +135,20 @@ const AddUserModal = ({ isOpen, onClose, onUserAdded }: AddUserModalProps) => {
               className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               required
               minLength={6}
+              aria-required="true"
+              autoComplete="new-password"
             />
           </div>
 
           <div>
-            <label className="block mb-1.5 text-sm font-medium text-gray-700">Role</label>
+            <label htmlFor="role" className="block mb-1.5 text-sm font-medium text-gray-700">Role</label>
             <select
+              id="role"
               value={role}
               onChange={(e) => setRole(e.target.value)}
               className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               required
+              aria-required="true"
             >
               <option value="admin">Admin</option>
               <option value="production_manager">Production Manager</option>
@@ -143,14 +160,16 @@ const AddUserModal = ({ isOpen, onClose, onUserAdded }: AddUserModalProps) => {
           </div>
 
           <div>
-            <label className="block mb-1.5 text-sm font-medium text-gray-700">Department</label>
+            <label htmlFor="department" className="block mb-1.5 text-sm font-medium text-gray-700">Department</label>
             <input
+              id="department"
               type="text"
               value={department}
               onChange={(e) => setDepartment(e.target.value)}
               placeholder="e.g., Operations, Finance, Warehouse"
               className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               required
+              aria-required="true"
             />
           </div>
 
@@ -165,6 +184,7 @@ const AddUserModal = ({ isOpen, onClose, onUserAdded }: AddUserModalProps) => {
             <button
               type="submit"
               disabled={loading}
+              aria-label={loading ? 'Creating user' : 'Create new user'}
               className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {loading ? 'Creating...' : 'Create User'}
