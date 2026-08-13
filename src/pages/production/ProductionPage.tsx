@@ -241,7 +241,7 @@ const ProductionPage = () => {
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <div className="p-6 bg-white border border-gray-200 rounded-xl">
           <div className="flex items-center justify-between mb-3">
-            <Activity className="w-10 h-10 text-blue-600" />
+            <Activity className="w-10 h-10 text-blue-600" aria-hidden="true" />
           </div>
           <p className="text-sm text-gray-500">Units Today</p>
           <p className="text-2xl font-bold text-gray-900">{unitsToday.toLocaleString()}</p>
@@ -249,7 +249,7 @@ const ProductionPage = () => {
 
         <div className="p-6 bg-white border border-gray-200 rounded-xl">
           <div className="flex items-center justify-between mb-3">
-            <CheckCircle className="w-10 h-10 text-green-600" />
+            <CheckCircle className="w-10 h-10 text-green-600" aria-hidden="true" />
           </div>
           <p className="text-sm text-gray-500">Quality Pass Rate</p>
           <p className="text-2xl font-bold text-gray-900">{qualityPassRate}%</p>
@@ -257,7 +257,7 @@ const ProductionPage = () => {
 
         <div className="p-6 bg-white border border-gray-200 rounded-xl">
           <div className="flex items-center justify-between mb-3">
-            <TrendingUp className="w-10 h-10 text-purple-600" />
+            <TrendingUp className="w-10 h-10 text-purple-600" aria-hidden="true" />
           </div>
           <p className="text-sm text-gray-500">Avg Efficiency</p>
           <p className="text-2xl font-bold text-gray-900">{avgEfficiency}%</p>
@@ -265,7 +265,7 @@ const ProductionPage = () => {
 
         <div className="p-6 bg-white border border-gray-200 rounded-xl">
           <div className="flex items-center justify-between mb-3">
-            <Zap className="w-10 h-10 text-orange-600" />
+            <Zap className="w-10 h-10 text-orange-600" aria-hidden="true" />
           </div>
           <p className="text-sm text-gray-500">Lines Active</p>
           <p className="text-2xl font-bold text-gray-900">{linesActive}/{lines.length}</p>
@@ -279,16 +279,18 @@ const ProductionPage = () => {
             <div className="flex gap-2">
               <button 
                 onClick={() => setIsRequestModalOpen(true)}
+                aria-label="Request materials for production"
                 className="flex items-center px-3 py-1.5 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 transition"
               >
-                <Send className="w-4 h-4 mr-1" />
+                <Send className="w-4 h-4 mr-1" aria-hidden="true" />
                 Request Materials
               </button>
               <button 
                 onClick={() => setIsLineModalOpen(true)}
+                aria-label="Add new production line"
                 className="flex items-center px-3 py-1.5 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition"
               >
-                <Plus className="w-4 h-4 mr-1" />
+                <Plus className="w-4 h-4 mr-1" aria-hidden="true" />
                 Add Line
               </button>
             </div>
@@ -351,9 +353,10 @@ const ProductionPage = () => {
             {canModifyProduction && (
               <button 
                 onClick={() => setIsBatchModalOpen(true)}
+                aria-label="Create new production batch"
                 className="flex items-center px-3 py-1.5 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition"
               >
-                <Package className="w-4 h-4 mr-1" />
+                <Package className="w-4 h-4 mr-1" aria-hidden="true" />
                 New Batch
               </button>
             )}
@@ -363,14 +366,14 @@ const ProductionPage = () => {
             <table className="w-full">
               <thead className="bg-gray-50 border-b border-gray-200">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Batch ID</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Product</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Quantity</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Quality</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Disposition</th>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Batch ID</th>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Product</th>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Quantity</th>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Quality</th>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Disposition</th>
                   {canModifyProduction && (
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
                   )}
                 </tr>
               </thead>
@@ -405,86 +408,94 @@ const ProductionPage = () => {
                         )}
                       </td>
                       {canModifyProduction && (
-  <td className="px-6 py-4">
-    {/* 1. Initial Quality Check (Completed but Pending Quality) */}
-    {batch.status === 'completed' && batch.quality_status === 'pending' && !batch.disposition && (
-      <div className="flex gap-1">
-        <button
-          onClick={() => handleQualityCheck(batch.id, 'pass')}
-          className="px-2 py-1 text-xs font-medium text-green-600 bg-green-50 hover:bg-green-100 rounded"
-        >
-          Pass
-        </button>
-        <button
-          onClick={() => handleQualityCheck(batch.id, 'fail')}
-          className="px-2 py-1 text-xs font-medium text-red-600 bg-red-50 hover:bg-red-100 rounded"
-        >
-          Fail
-        </button>
-      </div>
-    )}
+                        <td className="px-6 py-4">
+                          {/* 1. Initial Quality Check (Completed but Pending Quality) */}
+                          {batch.status === 'completed' && batch.quality_status === 'pending' && !batch.disposition && (
+                            <div className="flex gap-1">
+                              <button
+                                onClick={() => handleQualityCheck(batch.id, 'pass')}
+                                aria-label={`Mark batch ${batch.batch_id} as passed`}
+                                className="px-2 py-1 text-xs font-medium text-green-600 bg-green-50 hover:bg-green-100 rounded"
+                              >
+                                Pass
+                              </button>
+                              <button
+                                onClick={() => handleQualityCheck(batch.id, 'fail')}
+                                aria-label={`Mark batch ${batch.batch_id} as failed`}
+                                className="px-2 py-1 text-xs font-medium text-red-600 bg-red-50 hover:bg-red-100 rounded"
+                              >
+                                Fail
+                              </button>
+                            </div>
+                          )}
 
-    {/* 2. Failed Batch - Needs Disposition (Rework/Scrap/Downgrade) */}
-    {batch.status === 'completed' && batch.quality_status === 'fail' && !batch.disposition && (
-      <div className="flex gap-1">
-        <button
-          onClick={() => handleBatchDisposition(batch.id, 'rework')}
-          className="p-1 text-orange-600 hover:bg-orange-50 rounded"
-          title="Rework"
-        >
-          <RefreshCw className="w-4 h-4" />
-        </button>
-        <button
-          onClick={() => handleBatchDisposition(batch.id, 'scrap')}
-          className="p-1 text-red-600 hover:bg-red-50 rounded"
-          title="Scrap"
-        >
-          <Trash2 className="w-4 h-4" />
-        </button>
-        <button
-          onClick={() => handleBatchDisposition(batch.id, 'downgrade')}
-          className="p-1 text-yellow-600 hover:bg-yellow-50 rounded"
-          title="Downgrade"
-        >
-          <AlertTriangle className="w-4 h-4" />
-        </button>
-      </div>
-    )}
+                          {/* 2. Failed Batch - Needs Disposition (Rework/Scrap/Downgrade) */}
+                          {batch.status === 'completed' && batch.quality_status === 'fail' && !batch.disposition && (
+                            <div className="flex gap-1">
+                              <button
+                                onClick={() => handleBatchDisposition(batch.id, 'rework')}
+                                aria-label={`Mark batch ${batch.batch_id} for rework`}
+                                className="p-1 text-orange-600 hover:bg-orange-50 rounded"
+                                title="Rework"
+                              >
+                                <RefreshCw className="w-4 h-4" aria-hidden="true" />
+                              </button>
+                              <button
+                                onClick={() => handleBatchDisposition(batch.id, 'scrap')}
+                                aria-label={`Mark batch ${batch.batch_id} as scrap`}
+                                className="p-1 text-red-600 hover:bg-red-50 rounded"
+                                title="Scrap"
+                              >
+                                <Trash2 className="w-4 h-4" aria-hidden="true" />
+                              </button>
+                              <button
+                                onClick={() => handleBatchDisposition(batch.id, 'downgrade')}
+                                aria-label={`Mark batch ${batch.batch_id} as downgrade`}
+                                className="p-1 text-yellow-600 hover:bg-yellow-50 rounded"
+                                title="Downgrade"
+                              >
+                                <AlertTriangle className="w-4 h-4" aria-hidden="true" />
+                              </button>
+                            </div>
+                          )}
 
-    {/* 3. Rework in Progress - Send to QC (Fixes the unused variable error) */}
-    {batch.disposition === 'rework' && batch.status === 'in_progress' && (
-      <button
-        onClick={() => handleSendToQualityCheck(batch.id)}
-        className="px-2 py-1 text-xs font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 rounded"
-      >
-        Send to QC
-      </button>
-    )}
+                          {/* 3. Rework in Progress - Send to QC */}
+                          {batch.disposition === 'rework' && batch.status === 'in_progress' && (
+                            <button
+                              onClick={() => handleSendToQualityCheck(batch.id)}
+                              aria-label={`Send reworked batch ${batch.batch_id} to quality check`}
+                              className="px-2 py-1 text-xs font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 rounded"
+                            >
+                              Send to QC
+                            </button>
+                          )}
 
-    {/* 4. Reworked Batch in Quality Check - Pass/Fail again */}
-    {batch.disposition === 'rework' && batch.status === 'quality_check' && (
-      <div className="flex gap-1">
-        <button
-          onClick={() => handleQualityCheck(batch.id, 'pass')}
-          className="px-2 py-1 text-xs font-medium text-green-600 bg-green-50 hover:bg-green-100 rounded"
-        >
-          Pass
-        </button>
-        <button
-          onClick={() => handleQualityCheck(batch.id, 'fail')}
-          className="px-2 py-1 text-xs font-medium text-red-600 bg-red-50 hover:bg-red-100 rounded"
-        >
-          Fail
-        </button>
-      </div>
-    )}
+                          {/* 4. Reworked Batch in Quality Check - Pass/Fail again */}
+                          {batch.disposition === 'rework' && batch.status === 'quality_check' && (
+                            <div className="flex gap-1">
+                              <button
+                                onClick={() => handleQualityCheck(batch.id, 'pass')}
+                                aria-label={`Mark reworked batch ${batch.batch_id} as passed`}
+                                className="px-2 py-1 text-xs font-medium text-green-600 bg-green-50 hover:bg-green-100 rounded"
+                              >
+                                Pass
+                              </button>
+                              <button
+                                onClick={() => handleQualityCheck(batch.id, 'fail')}
+                                aria-label={`Mark reworked batch ${batch.batch_id} as failed`}
+                                className="px-2 py-1 text-xs font-medium text-red-600 bg-red-50 hover:bg-red-100 rounded"
+                              >
+                                Fail
+                              </button>
+                            </div>
+                          )}
 
-    {/* 5. Finalized Dispositions (Scrap or Downgrade) */}
-    {(batch.disposition === 'scrap' || batch.disposition === 'downgrade') && (
-      <span className="text-xs text-gray-400">Processed</span>
-    )}
-  </td>
-)}
+                          {/* 5. Finalized Dispositions (Scrap or Downgrade) */}
+                          {(batch.disposition === 'scrap' || batch.disposition === 'downgrade') && (
+                            <span className="text-xs text-gray-400">Processed</span>
+                          )}
+                        </td>
+                      )}
                     </tr>
                   ))
                 )}
@@ -541,10 +552,10 @@ const ProductionPage = () => {
           <table className="w-full">
             <thead className="bg-gray-50 border-b border-gray-200">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Material</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Quantity</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Urgency</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Material</th>
+                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Quantity</th>
+                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Urgency</th>
+                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200">
