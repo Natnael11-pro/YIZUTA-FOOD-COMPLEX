@@ -63,43 +63,56 @@ const LoginPage = () => {
           <p className="text-sm text-gray-500">Management System</p>
         </div>
 
-        <div className="p-8 bg-white border border-gray-100 rounded-2xl shadow-sm">
+        {/* ✅ ACCESSIBILITY: Added role and aria-label to main form container */}
+        <div className="p-8 bg-white border border-gray-100 rounded-2xl shadow-sm" role="main" aria-label="Login form">
           <h2 className="mb-6 text-xl font-semibold text-gray-900">Sign in to your account</h2>
           
+          {/* ✅ ACCESSIBILITY: Added role="alert" and aria-live for error messages */}
           {error && (
-            <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-600 text-sm rounded-lg">
+            <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-600 text-sm rounded-lg" role="alert" aria-live="assertive">
               {error}
             </div>
           )}
           
-          <form onSubmit={handleSignIn} className="space-y-4">
+          {/* ✅ ACCESSIBILITY: Added aria-label to form */}
+          <form onSubmit={handleSignIn} className="space-y-4" aria-label="Login form">
             <div>
-              <label className="block mb-1.5 text-sm font-medium text-gray-700">Email address</label>
+              {/* ✅ ACCESSIBILITY: Added htmlFor to link label with input */}
+              <label htmlFor="email" className="block mb-1.5 text-sm font-medium text-gray-700">Email address</label>
               <input 
-                type="email" 
+                type="email"
+                id="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="admin@yizuta.com" 
                 className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
                 required
+                aria-required="true"
+                autoComplete="email"
               />
             </div>
             
             <div>
-              <label className="block mb-1.5 text-sm font-medium text-gray-700">Password</label>
+              {/* ✅ ACCESSIBILITY: Added htmlFor to link label with input */}
+              <label htmlFor="password" className="block mb-1.5 text-sm font-medium text-gray-700">Password</label>
               <input 
-                type="password" 
+                type="password"
+                id="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="Enter your password" 
                 className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
                 required
+                aria-required="true"
+                autoComplete="current-password"
               />
             </div>
 
+            {/* ✅ ACCESSIBILITY: Added aria-label to button */}
             <button 
               type="submit" 
               disabled={loading}
+              aria-label={loading ? 'Signing in' : 'Sign in to your account'}
               className="w-full py-2.5 mt-2 text-white font-medium bg-blue-600 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 transition disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {loading ? 'Signing in...' : 'Sign in'}
