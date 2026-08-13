@@ -85,7 +85,7 @@ const ExpenseReportPage = () => {
         <div className="p-6 bg-white border border-gray-200 rounded-xl">
           <div className="flex items-center justify-between mb-2">
             <p className="text-sm text-gray-500">Total Income</p>
-            <TrendingUp className="w-5 h-5 text-green-600" />
+            <TrendingUp className="w-5 h-5 text-green-600" aria-hidden="true" />
           </div>
           <p className="text-2xl font-bold text-green-600">{formatCurrency(totalIncome)}</p>
         </div>
@@ -93,7 +93,7 @@ const ExpenseReportPage = () => {
         <div className="p-6 bg-white border border-gray-200 rounded-xl">
           <div className="flex items-center justify-between mb-2">
             <p className="text-sm text-gray-500">Total Expenses</p>
-            <TrendingDown className="w-5 h-5 text-red-600" />
+            <TrendingDown className="w-5 h-5 text-red-600" aria-hidden="true" />
           </div>
           <p className="text-2xl font-bold text-red-600">{formatCurrency(totalExpenses)}</p>
         </div>
@@ -101,7 +101,7 @@ const ExpenseReportPage = () => {
         <div className="p-6 bg-white border border-gray-200 rounded-xl">
           <div className="flex items-center justify-between mb-2">
             <p className="text-sm text-gray-500">Net Profit</p>
-            <TrendingUp className="w-5 h-5 text-blue-600" />
+            <TrendingUp className="w-5 h-5 text-blue-600" aria-hidden="true" />
           </div>
           <p className={`text-2xl font-bold ${netProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
             {formatCurrency(netProfit)}
@@ -111,10 +111,13 @@ const ExpenseReportPage = () => {
 
       {/* Filters */}
       <div className="bg-white border border-gray-200 rounded-xl p-4 flex items-center space-x-4">
-        <Filter className="w-5 h-5 text-gray-500" />
+        <Filter className="w-5 h-5 text-gray-500" aria-hidden="true" />
         <span className="text-sm font-medium text-gray-700">Filter:</span>
         
+        {/* ✅ ACCESSIBILITY: Added htmlFor and id for proper label association */}
+        <label htmlFor="filter-type" className="sr-only">Filter by transaction type</label>
         <select 
+          id="filter-type"
           value={filterType} 
           onChange={(e) => setFilterType(e.target.value)}
           className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -124,7 +127,9 @@ const ExpenseReportPage = () => {
           <option value="expense">Expenses Only</option>
         </select>
 
+        <label htmlFor="filter-category" className="sr-only">Filter by category</label>
         <select 
+          id="filter-category"
           value={filterCategory} 
           onChange={(e) => setFilterCategory(e.target.value)}
           className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -141,13 +146,14 @@ const ExpenseReportPage = () => {
         <table className="w-full">
           <thead className="bg-gray-50 border-b">
             <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Description</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Category</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Amount</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Export</th>
+              {/* ✅ ACCESSIBILITY: Added scope="col" to all table headers */}
+              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
+              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
+              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Description</th>
+              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Category</th>
+              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Amount</th>
+              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Export</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-200">
@@ -179,12 +185,14 @@ const ExpenseReportPage = () => {
                     }`}>{t.status}</span>
                   </td>
                   <td className="px-6 py-4">
+                    {/* ✅ ACCESSIBILITY: Added aria-label to icon button */}
                     <button
                       onClick={() => downloadTransaction(t)}
+                      aria-label={`Download transaction ${t.description} as CSV`}
                       className="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
                       title="Download this transaction"
                     >
-                      <Download className="w-5 h-5" />
+                      <Download className="w-5 h-5" aria-hidden="true" />
                     </button>
                   </td>
                 </tr>
