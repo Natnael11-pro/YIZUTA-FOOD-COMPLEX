@@ -106,12 +106,13 @@ const DashboardPage = () => {
 
   if (error) {
     return (
-      <div className="p-12 text-center">
-        <AlertTriangle className="w-16 h-16 text-red-600 mx-auto mb-4" />
+      <div className="p-12 text-center" role="alert">
+        <AlertTriangle className="w-16 h-16 text-red-600 mx-auto mb-4" aria-hidden="true" />
         <h2 className="text-2xl font-bold text-gray-900 mb-2">Error Loading Dashboard</h2>
         <p className="text-gray-600 mb-4">{error}</p>
         <button 
           onClick={() => window.location.reload()}
+          aria-label="Retry loading dashboard"
           className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
         >
           Retry
@@ -128,8 +129,8 @@ const DashboardPage = () => {
       </div>
 
       {loading ? (
-        <div className="p-12 text-center text-gray-500">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+        <div className="p-12 text-center text-gray-500" role="status" aria-label="Loading dashboard data">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4" aria-hidden="true"></div>
           Loading company data...
         </div>
       ) : (
@@ -139,7 +140,7 @@ const DashboardPage = () => {
             <div className="p-6 bg-white border border-gray-200 rounded-xl">
               <div className="flex items-center justify-between mb-2">
                 <p className="text-sm text-gray-500">Net Profit</p>
-                <TrendingUp className="w-5 h-5 text-green-600" />
+                <TrendingUp className="w-5 h-5 text-green-600" aria-hidden="true" />
               </div>
               <p className="text-2xl font-bold text-gray-900">
                 {formatCurrency(stats.totalRevenue - stats.totalExpenses)}
@@ -150,7 +151,7 @@ const DashboardPage = () => {
             <div className="p-6 bg-white border border-gray-200 rounded-xl">
               <div className="flex items-center justify-between mb-2">
                 <p className="text-sm text-gray-500">Production Status</p>
-                <Factory className="w-5 h-5 text-purple-600" />
+                <Factory className="w-5 h-5 text-purple-600" aria-hidden="true" />
               </div>
               <p className="text-2xl font-bold text-gray-900">
                 {stats.activeProductionLines}/{stats.totalProductionLines}
@@ -161,7 +162,7 @@ const DashboardPage = () => {
             <div className="p-6 bg-white border border-gray-200 rounded-xl">
               <div className="flex items-center justify-between mb-2">
                 <p className="text-sm text-gray-500">Inventory Health</p>
-                <Package className="w-5 h-5 text-blue-600" />
+                <Package className="w-5 h-5 text-blue-600" aria-hidden="true" />
               </div>
               <p className="text-2xl font-bold text-gray-900">{stats.totalInventoryItems}</p>
               <p className={`text-xs mt-1 ${stats.lowStockItems > 0 ? 'text-red-600' : 'text-green-600'}`}>
@@ -172,7 +173,7 @@ const DashboardPage = () => {
             <div className="p-6 bg-white border border-gray-200 rounded-xl">
               <div className="flex items-center justify-between mb-2">
                 <p className="text-sm text-gray-500">Sales Pipeline</p>
-                <ShoppingCart className="w-5 h-5 text-orange-600" />
+                <ShoppingCart className="w-5 h-5 text-orange-600" aria-hidden="true" />
               </div>
               <p className="text-2xl font-bold text-gray-900">{stats.pendingSalesOrders}</p>
               <p className="text-xs text-gray-500 mt-1">Pending/Processing orders</p>
@@ -181,13 +182,14 @@ const DashboardPage = () => {
 
           {/* Low Stock Alert Banner */}
           {stats.lowStockItems > 0 && (
-            <div className="p-4 bg-red-50 border border-red-200 rounded-lg flex items-center">
-              <AlertTriangle className="w-5 h-5 text-red-600 mr-3 flex-shrink-0" />
+            <div className="p-4 bg-red-50 border border-red-200 rounded-lg flex items-center" role="alert">
+              <AlertTriangle className="w-5 h-5 text-red-600 mr-3 flex-shrink-0" aria-hidden="true" />
               <p className="text-sm font-medium text-red-800">
                 Attention Warehouse Team: {stats.lowStockItems} inventory item(s) have fallen below the reorder level.
               </p>
               <button 
                 onClick={() => navigate('/warehouse')}
+                aria-label="View inventory details"
                 className="ml-auto text-sm font-medium text-red-700 hover:text-red-900 underline"
               >
                 View Inventory
