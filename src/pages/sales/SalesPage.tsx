@@ -138,7 +138,7 @@ const SalesPage = () => {
 
     const gatePassHTML = `
       <!DOCTYPE html>
-      <html>
+      <html lang="en">
         <head>
           <title>Gate Pass - ${order.order_number}</title>
           <style>
@@ -207,11 +207,11 @@ const SalesPage = () => {
             <table class="goods-table">
               <thead>
                 <tr>
-                  <th>S.No</th>
-                  <th>Product Type</th>
-                  <th>Description</th>
-                  <th>Quantity</th>
-                  <th>Unit</th>
+                  <th scope="col">S.No</th>
+                  <th scope="col">Product Type</th>
+                  <th scope="col">Description</th>
+                  <th scope="col">Quantity</th>
+                  <th scope="col">Unit</th>
                 </tr>
               </thead>
               <tbody>
@@ -262,8 +262,8 @@ const SalesPage = () => {
           </div>
 
           <div class="no-print">
-            <button onclick="window.print()">Print Gate Pass</button>
-            <button onclick="window.close()">Close</button>
+            <button onclick="window.print()" aria-label="Print Gate Pass">Print Gate Pass</button>
+            <button onclick="window.close()" aria-label="Close window">Close</button>
           </div>
 
           <script>
@@ -315,7 +315,7 @@ const SalesPage = () => {
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <div className="p-6 bg-white border border-gray-200 rounded-xl">
           <div className="flex items-center justify-between mb-2">
-            <Users className="w-10 h-10 text-blue-600" />
+            <Users className="w-10 h-10 text-blue-600" aria-hidden="true" />
           </div>
           <p className="text-sm text-gray-500">Total Customers</p>
           <p className="text-2xl font-bold text-gray-900">{totalCustomers}</p>
@@ -324,7 +324,7 @@ const SalesPage = () => {
 
         <div className="p-6 bg-white border border-gray-200 rounded-xl">
           <div className="flex items-center justify-between mb-2">
-            <ShoppingCart className="w-10 h-10 text-purple-600" />
+            <ShoppingCart className="w-10 h-10 text-purple-600" aria-hidden="true" />
           </div>
           <p className="text-sm text-gray-500">Total Orders</p>
           <p className="text-2xl font-bold text-gray-900">{totalOrders}</p>
@@ -333,7 +333,7 @@ const SalesPage = () => {
 
         <div className="p-6 bg-white border border-gray-200 rounded-xl">
           <div className="flex items-center justify-between mb-2">
-            <DollarSign className="w-10 h-10 text-green-600" />
+            <DollarSign className="w-10 h-10 text-green-600" aria-hidden="true" />
           </div>
           <p className="text-sm text-gray-500">Total Revenue</p>
           <p className="text-2xl font-bold text-gray-900">{formatCurrency(totalRevenue)}</p>
@@ -342,7 +342,7 @@ const SalesPage = () => {
 
         <div className="p-6 bg-white border border-gray-200 rounded-xl">
           <div className="flex items-center justify-between mb-2">
-            <TrendingUp className="w-10 h-10 text-orange-600" />
+            <TrendingUp className="w-10 h-10 text-orange-600" aria-hidden="true" />
           </div>
           <p className="text-sm text-gray-500">Avg Order Value</p>
           <p className="text-2xl font-bold text-gray-900">
@@ -361,9 +361,10 @@ const SalesPage = () => {
             {canModifySales && (
               <button 
                 onClick={() => setIsOrderModalOpen(true)}
+                aria-label="Create new sales order"
                 className="flex items-center px-3 py-1.5 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition"
               >
-                <Package className="w-4 h-4 mr-1" />
+                <Package className="w-4 h-4 mr-1" aria-hidden="true" />
                 New Order
               </button>
             )}
@@ -373,13 +374,13 @@ const SalesPage = () => {
             <table className="w-full">
               <thead className="bg-gray-50 border-b border-gray-200">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Order #</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Customer</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Product</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Amount</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Order #</th>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Customer</th>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Product</th>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Amount</th>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
                   {canModifySales && (
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
                   )}
                 </tr>
               </thead>
@@ -409,27 +410,30 @@ const SalesPage = () => {
                             {order.status === 'pending' && (
                               <button
                                 onClick={() => updateOrderStatus(order.id, 'processing')}
+                                aria-label={`Start processing order ${order.order_number}`}
                                 className="flex items-center px-2 py-1 text-xs font-medium text-white bg-blue-600 rounded hover:bg-blue-700 transition"
                               >
-                                <Play className="w-3 h-3 mr-1" />
+                                <Play className="w-3 h-3 mr-1" aria-hidden="true" />
                                 Process
                               </button>
                             )}
                             {order.status === 'processing' && (
                               <button
                                 onClick={() => updateOrderStatus(order.id, 'completed')}
+                                aria-label={`Mark order ${order.order_number} as completed`}
                                 className="flex items-center px-2 py-1 text-xs font-medium text-white bg-green-600 rounded hover:bg-green-700 transition"
                               >
-                                <CheckCircle className="w-3 h-3 mr-1" />
+                                <CheckCircle className="w-3 h-3 mr-1" aria-hidden="true" />
                                 Complete
                               </button>
                             )}
                             {order.status === 'completed' && (
                               <button
                                 onClick={() => handleGenerateGatePass(order)}
+                                aria-label={`Generate gate pass for order ${order.order_number}`}
                                 className="flex items-center px-2 py-1 text-xs font-medium text-purple-600 bg-purple-50 hover:bg-purple-100 rounded transition"
                               >
-                                <Printer className="w-3 h-3 mr-1" />
+                                <Printer className="w-3 h-3 mr-1" aria-hidden="true" />
                                 Gate Pass
                               </button>
                             )}
@@ -450,9 +454,10 @@ const SalesPage = () => {
             {canModifySales && (
               <button 
                 onClick={() => setIsCustomerModalOpen(true)}
+                aria-label="Add new customer"
                 className="flex items-center px-3 py-1.5 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition"
               >
-                <UserPlus className="w-4 h-4 mr-1" />
+                <UserPlus className="w-4 h-4 mr-1" aria-hidden="true" />
                 Add Customer
               </button>
             )}
@@ -473,7 +478,7 @@ const SalesPage = () => {
                   <div key={customer.id} className="p-4 hover:bg-gray-50">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center">
-                        <div className="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center text-white font-semibold text-sm mr-3">
+                        <div className="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center text-white font-semibold text-sm mr-3" aria-hidden="true">
                           {customer.name.charAt(0).toUpperCase()}
                         </div>
                         <div>
