@@ -225,12 +225,25 @@ const InvoicePage = () => {
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <h1 className="text-3xl font-bold text-gray-900">{isEditing ? 'Edit Invoice' : 'Create Invoice'}</h1>
-          <button onClick={() => { setIsCreating(false); resetForm() }} className="text-gray-600 hover:text-gray-900">Cancel</button>
+          <button 
+            onClick={() => { setIsCreating(false); resetForm() }} 
+            aria-label="Cancel and return to invoice list"
+            className="text-gray-600 hover:text-gray-900"
+          >
+            Cancel
+          </button>
         </div>
         <div className="bg-white border border-gray-200 rounded-xl p-6 space-y-6">
           <div>
-            <label className="block mb-1.5 text-sm font-medium text-gray-700">Customer</label>
-            <select value={selectedCustomer} onChange={(e) => setSelectedCustomer(e.target.value)} className="w-full px-4 py-2.5 border border-gray-300 rounded-lg">
+            {/* ✅ ACCESSIBILITY: Added htmlFor and id for proper label association */}
+            <label htmlFor="customer-select" className="block mb-1.5 text-sm font-medium text-gray-700">Customer</label>
+            <select 
+              id="customer-select"
+              value={selectedCustomer} 
+              onChange={(e) => setSelectedCustomer(e.target.value)} 
+              className="w-full px-4 py-2.5 border border-gray-300 rounded-lg"
+              aria-required="true"
+            >
               <option value="">Select a customer...</option>
               {customers.map(c => <option key={c.id} value={c.id}>{c.name} {c.company ? `(${c.company})` : ''}</option>)}
             </select>
@@ -238,47 +251,95 @@ const InvoicePage = () => {
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <h3 className="text-lg font-semibold">Items</h3>
-              <button onClick={handleAddItem} className="flex items-center px-3 py-1.5 text-sm text-white bg-blue-600 rounded-lg">
-                <Plus className="w-4 h-4 mr-1" /> Add Item
+              <button 
+                onClick={handleAddItem} 
+                aria-label="Add new item to invoice"
+                className="flex items-center px-3 py-1.5 text-sm text-white bg-blue-600 rounded-lg"
+              >
+                <Plus className="w-4 h-4 mr-1" aria-hidden="true" /> Add Item
               </button>
             </div>
             {items.map((item) => (
               <div key={item.id} className="grid grid-cols-12 gap-4 items-end">
                 <div className="col-span-5">
-                  <label className="block mb-1 text-sm text-gray-700">Description</label>
-                  <input type="text" value={item.description} onChange={(e) => handleItemChange(item.id, 'description', e.target.value)} className="w-full px-3 py-2 border rounded-lg" placeholder="Product or service" />
+                  <label htmlFor={`desc-${item.id}`} className="block mb-1 text-sm text-gray-700">Description</label>
+                  <input 
+                    type="text" 
+                    id={`desc-${item.id}`}
+                    value={item.description} 
+                    onChange={(e) => handleItemChange(item.id, 'description', e.target.value)} 
+                    className="w-full px-3 py-2 border rounded-lg" 
+                    placeholder="Product or service" 
+                  />
                 </div>
                 <div className="col-span-2">
-                  <label className="block mb-1 text-sm text-gray-700">Quantity</label>
-                  <input type="number" value={item.quantity} onChange={(e) => handleItemChange(item.id, 'quantity', parseFloat(e.target.value))} className="w-full px-3 py-2 border rounded-lg" />
+                  <label htmlFor={`qty-${item.id}`} className="block mb-1 text-sm text-gray-700">Quantity</label>
+                  <input 
+                    type="number" 
+                    id={`qty-${item.id}`}
+                    value={item.quantity} 
+                    onChange={(e) => handleItemChange(item.id, 'quantity', parseFloat(e.target.value))} 
+                    className="w-full px-3 py-2 border rounded-lg" 
+                  />
                 </div>
                 <div className="col-span-2">
-                  <label className="block mb-1 text-sm text-gray-700">Unit Price (ETB)</label>
-                  <input type="number" value={item.unit_price} onChange={(e) => handleItemChange(item.id, 'unit_price', parseFloat(e.target.value))} className="w-full px-3 py-2 border rounded-lg" />
+                  <label htmlFor={`price-${item.id}`} className="block mb-1 text-sm text-gray-700">Unit Price (ETB)</label>
+                  <input 
+                    type="number" 
+                    id={`price-${item.id}`}
+                    value={item.unit_price} 
+                    onChange={(e) => handleItemChange(item.id, 'unit_price', parseFloat(e.target.value))} 
+                    className="w-full px-3 py-2 border rounded-lg" 
+                  />
                 </div>
                 <div className="col-span-2">
-                  <label className="block mb-1 text-sm text-gray-700">Total</label>
-                  <p className="px-3 py-2 font-medium">{formatCurrency(item.total)}</p>
+                  <label htmlFor={`total-${item.id}`} className="block mb-1 text-sm text-gray-700">Total</label>
+                  <p id={`total-${item.id}`} className="px-3 py-2 font-medium">{formatCurrency(item.total)}</p>
                 </div>
                 <div className="col-span-1">
-                  <button onClick={() => handleRemoveItem(item.id)} className="p-2 text-red-600 hover:bg-red-50 rounded-lg"><Trash2 className="w-4 h-4" /></button>
+                  <button 
+                    onClick={() => handleRemoveItem(item.id)} 
+                    aria-label={`Remove item ${item.description || 'from list'}`}
+                    className="p-2 text-red-600 hover:bg-red-50 rounded-lg"
+                  >
+                    <Trash2 className="w-4 h-4" aria-hidden="true" />
+                  </button>
                 </div>
               </div>
             ))}
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block mb-1.5 text-sm font-medium text-gray-700">Tax Rate (%)</label>
-              <input type="number" value={taxRate} onChange={(e) => setTaxRate(parseFloat(e.target.value))} className="w-full px-4 py-2.5 border rounded-lg" />
+              <label htmlFor="tax-rate" className="block mb-1.5 text-sm font-medium text-gray-700">Tax Rate (%)</label>
+              <input 
+                type="number" 
+                id="tax-rate"
+                value={taxRate} 
+                onChange={(e) => setTaxRate(parseFloat(e.target.value))} 
+                className="w-full px-4 py-2.5 border rounded-lg" 
+              />
             </div>
             <div>
-              <label className="block mb-1.5 text-sm font-medium text-gray-700">Due Date</label>
-              <input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} className="w-full px-4 py-2.5 border rounded-lg" />
+              <label htmlFor="due-date" className="block mb-1.5 text-sm font-medium text-gray-700">Due Date</label>
+              <input 
+                type="date" 
+                id="due-date"
+                value={dueDate} 
+                onChange={(e) => setDueDate(e.target.value)} 
+                className="w-full px-4 py-2.5 border rounded-lg" 
+              />
             </div>
           </div>
           <div>
-            <label className="block mb-1.5 text-sm font-medium text-gray-700">Notes</label>
-            <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} className="w-full px-4 py-2.5 border rounded-lg" placeholder="Additional notes..." />
+            <label htmlFor="notes" className="block mb-1.5 text-sm font-medium text-gray-700">Notes</label>
+            <textarea 
+              id="notes"
+              value={notes} 
+              onChange={(e) => setNotes(e.target.value)} 
+              rows={3} 
+              className="w-full px-4 py-2.5 border rounded-lg" 
+              placeholder="Additional notes..." 
+            />
           </div>
           <div className="border-t pt-4">
             <div className="flex justify-end">
@@ -290,11 +351,28 @@ const InvoicePage = () => {
             </div>
           </div>
           <div className="flex justify-end space-x-3">
-            <button onClick={() => { setIsCreating(false); resetForm() }} className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg">Cancel</button>
+            <button 
+              onClick={() => { setIsCreating(false); resetForm() }} 
+              className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg"
+            >
+              Cancel
+            </button>
             {isEditing ? (
-              <button onClick={handleSaveEdit} className="px-4 py-2 text-white bg-green-600 rounded-lg hover:bg-green-700">Save Changes</button>
+              <button 
+                onClick={handleSaveEdit} 
+                aria-label="Save invoice changes"
+                className="px-4 py-2 text-white bg-green-600 rounded-lg hover:bg-green-700"
+              >
+                Save Changes
+              </button>
             ) : (
-              <button onClick={handleCreateInvoice} className="px-4 py-2 text-white bg-blue-600 rounded-lg hover:bg-blue-700">Create Invoice</button>
+              <button 
+                onClick={handleCreateInvoice} 
+                aria-label="Create new invoice"
+                className="px-4 py-2 text-white bg-blue-600 rounded-lg hover:bg-blue-700"
+              >
+                Create Invoice
+              </button>
             )}
           </div>
         </div>
@@ -310,8 +388,12 @@ const InvoicePage = () => {
           <p className="text-sm text-gray-500">Generate and manage invoices</p>
         </div>
         {canModifyInvoices && (
-          <button onClick={() => setIsCreating(true)} className="flex items-center px-4 py-2 text-white bg-blue-600 rounded-lg hover:bg-blue-700">
-            <Plus className="w-4 h-4 mr-2" /> Create Invoice
+          <button 
+            onClick={() => setIsCreating(true)} 
+            aria-label="Create new invoice"
+            className="flex items-center px-4 py-2 text-white bg-blue-600 rounded-lg hover:bg-blue-700"
+          >
+            <Plus className="w-4 h-4 mr-2" aria-hidden="true" /> Create Invoice
           </button>
         )}
       </div>
@@ -320,12 +402,13 @@ const InvoicePage = () => {
         <table className="w-full">
           <thead className="bg-gray-50 border-b">
             <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Invoice #</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Customer</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Amount</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Due Date</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+              {/* ✅ ACCESSIBILITY: Added scope="col" to all table headers */}
+              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Invoice #</th>
+              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Customer</th>
+              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Amount</th>
+              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Due Date</th>
+              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y">
@@ -350,29 +433,65 @@ const InvoicePage = () => {
                       {canModifyInvoices ? (
                         <>
                           {inv.status === 'draft' && (
-                            <button onClick={() => handleChangeStatus(inv.id, 'sent')} className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition" title="Send to customer">
-                              <Send className="w-4 h-4" />
+                            <button 
+                              onClick={() => handleChangeStatus(inv.id, 'sent')} 
+                              aria-label={`Send invoice ${inv.invoice_number} to customer`}
+                              className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition" 
+                              title="Send to customer"
+                            >
+                              <Send className="w-4 h-4" aria-hidden="true" />
                             </button>
                           )}
                           {inv.status === 'sent' && (
-                            <button onClick={() => handleChangeStatus(inv.id, 'paid')} className="p-1.5 text-green-600 hover:bg-green-50 rounded-lg transition" title="Mark as paid">
+                            <button 
+                              onClick={() => handleChangeStatus(inv.id, 'paid')} 
+                              aria-label={`Mark invoice ${inv.invoice_number} as paid`}
+                              className="p-1.5 text-green-600 hover:bg-green-50 rounded-lg transition" 
+                              title="Mark as paid"
+                            >
                               <span className="text-xs font-bold">Paid</span>
                             </button>
                           )}
-                          <button onClick={() => handleEditInvoice(inv)} className="p-1.5 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition" title="Edit invoice">
-                            <Edit2 className="w-4 h-4" />
+                          <button 
+                            onClick={() => handleEditInvoice(inv)} 
+                            aria-label={`Edit invoice ${inv.invoice_number}`}
+                            className="p-1.5 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition" 
+                            title="Edit invoice"
+                          >
+                            <Edit2 className="w-4 h-4" aria-hidden="true" />
                           </button>
-                          <button className="p-1.5 text-gray-500 hover:text-green-600 hover:bg-green-50 rounded-lg transition" title="Download invoice">
-                            <Download className="w-4 h-4" />
+                          <button 
+                            aria-label={`Download invoice ${inv.invoice_number}`}
+                            className="p-1.5 text-gray-500 hover:text-green-600 hover:bg-green-50 rounded-lg transition" 
+                            title="Download invoice"
+                          >
+                            <Download className="w-4 h-4" aria-hidden="true" />
                           </button>
                           {deleteConfirmId === inv.id ? (
                             <div className="flex items-center space-x-1">
-                              <button onClick={() => handleDeleteInvoice(inv.id)} className="px-2 py-1 text-xs text-white bg-red-600 rounded hover:bg-red-700">Confirm</button>
-                              <button onClick={() => setDeleteConfirmId(null)} className="px-2 py-1 text-xs text-gray-600 bg-gray-100 rounded hover:bg-gray-200">Cancel</button>
+                              <button 
+                                onClick={() => handleDeleteInvoice(inv.id)} 
+                                aria-label="Confirm deletion"
+                                className="px-2 py-1 text-xs text-white bg-red-600 rounded hover:bg-red-700"
+                              >
+                                Confirm
+                              </button>
+                              <button 
+                                onClick={() => setDeleteConfirmId(null)} 
+                                aria-label="Cancel deletion"
+                                className="px-2 py-1 text-xs text-gray-600 bg-gray-100 rounded hover:bg-gray-200"
+                              >
+                                Cancel
+                              </button>
                             </div>
                           ) : (
-                            <button onClick={() => setDeleteConfirmId(inv.id)} className="p-1.5 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition" title="Delete invoice">
-                              <Trash2 className="w-4 h-4" />
+                            <button 
+                              onClick={() => setDeleteConfirmId(inv.id)} 
+                              aria-label={`Delete invoice ${inv.invoice_number}`}
+                              className="p-1.5 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition" 
+                              title="Delete invoice"
+                            >
+                              <Trash2 className="w-4 h-4" aria-hidden="true" />
                             </button>
                           )}
                         </>
