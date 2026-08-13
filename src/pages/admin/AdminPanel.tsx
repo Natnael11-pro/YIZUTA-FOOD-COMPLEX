@@ -101,36 +101,50 @@ const AdminPanel = () => {
             console.log('Add User button clicked!')
             setIsModalOpen(true)
           }}
+          aria-label="Add new user"
           className="flex items-center px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition cursor-pointer"
         >
-          <UserPlus className="w-4 h-4 mr-2" />
+          <UserPlus className="w-4 h-4 mr-2" aria-hidden="true" />
           Add User
         </button>
       </div>
 
       {/* Quick Action Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="p-6 bg-white border border-gray-200 rounded-xl hover:shadow-md transition cursor-pointer">
+        {/* ✅ ACCESSIBILITY: Added role="button" and tabIndex for keyboard navigation on clickable cards */}
+        <div 
+          role="button" 
+          tabIndex={0}
+          className="p-6 bg-white border border-gray-200 rounded-xl hover:shadow-md transition cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500"
+        >
           <div className="flex items-center justify-between mb-3">
-            <Shield className="w-10 h-10 text-purple-600" />
+            <Shield className="w-10 h-10 text-purple-600" aria-hidden="true" />
             <span className="text-2xl font-bold text-gray-900">6</span>
           </div>
           <h3 className="text-sm font-semibold text-gray-900">Role Management</h3>
           <p className="mt-1 text-xs text-gray-500">Manage user roles and permissions</p>
         </div>
 
-        <div className="p-6 bg-white border border-gray-200 rounded-xl hover:shadow-md transition cursor-pointer">
+        <div 
+          role="button" 
+          tabIndex={0}
+          className="p-6 bg-white border border-gray-200 rounded-xl hover:shadow-md transition cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500"
+        >
           <div className="flex items-center justify-between mb-3">
-            <Settings className="w-10 h-10 text-blue-600" />
+            <Settings className="w-10 h-10 text-blue-600" aria-hidden="true" />
             <span className="text-2xl font-bold text-gray-900">12</span>
           </div>
           <h3 className="text-sm font-semibold text-gray-900">System Settings</h3>
           <p className="mt-1 text-xs text-gray-500">Configure system preferences</p>
         </div>
 
-        <div className="p-6 bg-white border border-gray-200 rounded-xl hover:shadow-md transition cursor-pointer">
+        <div 
+          role="button" 
+          tabIndex={0}
+          className="p-6 bg-white border border-gray-200 rounded-xl hover:shadow-md transition cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500"
+        >
           <div className="flex items-center justify-between mb-3">
-            <UserPlus className="w-10 h-10 text-green-600" />
+            <UserPlus className="w-10 h-10 text-green-600" aria-hidden="true" />
             <span className="text-2xl font-bold text-gray-900">{users.length}</span>
           </div>
           <h3 className="text-sm font-semibold text-gray-900">User Registration</h3>
@@ -144,9 +158,12 @@ const AdminPanel = () => {
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-semibold text-gray-900">User Management</h2>
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" aria-hidden="true" />
+              {/* ✅ ACCESSIBILITY: Added id and aria-label for screen readers */}
               <input
                 type="text"
+                id="user-search"
+                aria-label="Search users by name, email, or role"
                 placeholder="Search users..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
@@ -160,17 +177,18 @@ const AdminPanel = () => {
           <table className="w-full">
             <thead className="bg-gray-50 border-b border-gray-200">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">User</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Role</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Department</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                {/* ✅ ACCESSIBILITY: Added scope="col" to all table headers */}
+                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">User</th>
+                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Role</th>
+                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Department</th>
+                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200 bg-white">
               {loading ? (
                 <tr>
-                  <td colSpan={5} className="px-6 py-8 text-center text-gray-500">
+                  <td colSpan={5} className="px-6 py-8 text-center text-gray-500" role="status">
                     Loading users...
                   </td>
                 </tr>
@@ -185,7 +203,7 @@ const AdminPanel = () => {
                   <tr key={user.id} className="hover:bg-gray-50 transition">
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center">
-                        <div className="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center text-white font-semibold text-sm mr-3 flex-shrink-0">
+                        <div className="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center text-white font-semibold text-sm mr-3 flex-shrink-0" aria-hidden="true">
                           {user.full_name?.charAt(0).toUpperCase() || 'U'}
                         </div>
                         <div className="min-w-0">
@@ -209,15 +227,20 @@ const AdminPanel = () => {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center space-x-3">
-                        <button className="text-sm text-blue-600 hover:text-blue-800 transition flex items-center">
-                          <Edit className="w-4 h-4 mr-1" />
+                        {/* ✅ ACCESSIBILITY: Added descriptive aria-labels to action buttons */}
+                        <button 
+                          aria-label={`Edit user ${user.full_name || user.email}`}
+                          className="text-sm text-blue-600 hover:text-blue-800 transition flex items-center"
+                        >
+                          <Edit className="w-4 h-4 mr-1" aria-hidden="true" />
                           Edit
                         </button>
                         <button 
                           onClick={() => handleDeleteUser(user.id)}
+                          aria-label={`Delete user ${user.full_name || user.email}`}
                           className="text-sm text-red-600 hover:text-red-800 transition flex items-center"
                         >
-                          <Trash2 className="w-4 h-4 mr-1" />
+                          <Trash2 className="w-4 h-4 mr-1" aria-hidden="true" />
                           Delete
                         </button>
                       </div>
