@@ -153,7 +153,7 @@ const WarehousePage = () => {
       </div>
 
       {/* --- STOREKEEPER NOTIFICATION CENTER --- */}
-      <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-6">
+      <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-6" role="region" aria-label="Pending material requests">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-bold text-yellow-800 flex items-center gap-2">
             🔔 Pending Material Requests
@@ -191,6 +191,7 @@ const WarehousePage = () => {
                       <button 
                         onClick={() => handleRequestAction(req.id, 'rejected')}
                         disabled={reqLoading}
+                        aria-label={`Reject material request for ${req.material_name}`}
                         className="flex-1 md:flex-none px-4 py-2 text-sm font-medium text-red-700 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 transition disabled:opacity-50"
                       >
                         Reject
@@ -198,6 +199,7 @@ const WarehousePage = () => {
                       <button 
                         onClick={() => handleRequestAction(req.id, 'approved')}
                         disabled={reqLoading}
+                        aria-label={`Approve and dispatch material request for ${req.material_name}`}
                         className="flex-1 md:flex-none px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 transition disabled:opacity-50"
                       >
                         Approve & Dispatch
@@ -219,7 +221,7 @@ const WarehousePage = () => {
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <div className="p-6 bg-white border border-gray-200 rounded-xl">
           <div className="flex items-center justify-between mb-3">
-            <Package className="w-10 h-10 text-blue-600" />
+            <Package className="w-10 h-10 text-blue-600" aria-hidden="true" />
           </div>
           <p className="text-sm text-gray-500">Total Items</p>
           <p className="text-2xl font-bold text-gray-900">{totalItems}</p>
@@ -227,7 +229,7 @@ const WarehousePage = () => {
 
         <div className="p-6 bg-white border border-gray-200 rounded-xl">
           <div className="flex items-center justify-between mb-3">
-            <Truck className="w-10 h-10 text-green-600" />
+            <Truck className="w-10 h-10 text-green-600" aria-hidden="true" />
           </div>
           <p className="text-sm text-gray-500">Items Received</p>
           <p className="text-2xl font-bold text-gray-900">{itemsReceived}</p>
@@ -235,7 +237,7 @@ const WarehousePage = () => {
 
         <div className="p-6 bg-white border border-gray-200 rounded-xl">
           <div className="flex items-center justify-between mb-3">
-            <ArrowUpRight className="w-10 h-10 text-orange-600" />
+            <ArrowUpRight className="w-10 h-10 text-orange-600" aria-hidden="true" />
           </div>
           <p className="text-sm text-gray-500">Items Shipped</p>
           <p className="text-2xl font-bold text-gray-900">{itemsShipped}</p>
@@ -243,17 +245,18 @@ const WarehousePage = () => {
 
         <div className="p-6 bg-white border border-gray-200 rounded-xl">
           <div className="flex items-center justify-between mb-3">
-            <AlertTriangle className="w-10 h-10 text-red-600" />
+            <AlertTriangle className="w-10 h-10 text-red-600" aria-hidden="true" />
           </div>
           <p className="text-sm text-gray-500">Low Stock Alerts</p>
           <p className="text-2xl font-bold text-gray-900">{lowStockItems}</p>
         </div>
       </div>
 
+      {/* ✅ ACCESSIBILITY: Added role="alert" for screen readers to announce low stock immediately */}
       {lowStockItems > 0 && (
-        <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
+        <div className="p-4 bg-red-50 border border-red-200 rounded-lg" role="alert">
           <div className="flex items-center">
-            <AlertTriangle className="w-5 h-5 text-red-600 mr-3" />
+            <AlertTriangle className="w-5 h-5 text-red-600 mr-3" aria-hidden="true" />
             <p className="text-sm font-medium text-red-800">
               {lowStockItems} item(s) are below reorder level. Please restock soon.
             </p>
@@ -269,16 +272,18 @@ const WarehousePage = () => {
               <div className="flex gap-2">
                 <button 
                   onClick={() => setIsShipmentModalOpen(true)}
+                  aria-label="Record new shipment"
                   className="flex items-center px-3 py-1.5 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 transition"
                 >
-                  <Truck className="w-4 h-4 mr-1" />
+                  <Truck className="w-4 h-4 mr-1" aria-hidden="true" />
                   Shipment
                 </button>
                 <button 
                   onClick={() => setIsAddModalOpen(true)}
+                  aria-label="Add new inventory item"
                   className="flex items-center px-3 py-1.5 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition"
                 >
-                  <Plus className="w-4 h-4 mr-1" />
+                  <Plus className="w-4 h-4 mr-1" aria-hidden="true" />
                   Add Item
                 </button>
               </div>
@@ -289,12 +294,13 @@ const WarehousePage = () => {
             <table className="w-full">
               <thead className="bg-gray-50 border-b border-gray-200">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Item</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">SKU</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Quantity</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                  {/* ✅ ACCESSIBILITY: Added scope="col" to all table headers */}
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Item</th>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">SKU</th>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Quantity</th>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
                   {canModifyWarehouse && (
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
                   )}
                 </tr>
               </thead>
@@ -315,8 +321,12 @@ const WarehousePage = () => {
                       <td className="px-6 py-4">{getStatusBadge(item)}</td>
                       {canModifyWarehouse && (
                         <td className="px-6 py-4">
-                          <button onClick={() => handleEdit(item)} className="text-blue-600 hover:text-blue-800 text-sm font-medium">
-                            <Edit2 className="w-4 h-4" />
+                          <button 
+                            onClick={() => handleEdit(item)} 
+                            aria-label={`Edit inventory item ${item.item_name}`}
+                            className="text-blue-600 hover:text-blue-800 text-sm font-medium"
+                          >
+                            <Edit2 className="w-4 h-4" aria-hidden="true" />
                           </button>
                         </td>
                       )}
@@ -344,9 +354,9 @@ const WarehousePage = () => {
                   <div className="flex items-start justify-between">
                     <div className="flex items-start">
                       {shipment.type === 'inbound' ? (
-                        <Truck className="w-5 h-5 text-green-600 mr-3 mt-0.5" />
+                        <Truck className="w-5 h-5 text-green-600 mr-3 mt-0.5" aria-hidden="true" />
                       ) : (
-                        <ArrowUpRight className="w-5 h-5 text-blue-600 mr-3 mt-0.5" />
+                        <ArrowUpRight className="w-5 h-5 text-blue-600 mr-3 mt-0.5" aria-hidden="true" />
                       )}
                       <div>
                         <p className="text-sm font-medium text-gray-900">
