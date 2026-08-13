@@ -27,7 +27,8 @@ const GatePassPrintView = ({ order, customer }: GatePassProps) => {
   const currentDate = new Date().toLocaleDateString();
 
   return (
-    <div className="gate-pass-container">
+    // ✅ ACCESSIBILITY: Added role="document" for print view semantics
+    <div className="gate-pass-container" role="document" aria-label="Gate Pass and Delivery Note">
       {/* Header */}
       <div className="header">
         <div className="logo-section">
@@ -65,11 +66,12 @@ const GatePassPrintView = ({ order, customer }: GatePassProps) => {
       <table className="goods-table">
         <thead>
           <tr>
-            <th>S.No</th>
-            <th>Product Type</th>
-            <th>Description</th>
-            <th>Quantity</th>
-            <th>Unit</th>
+            {/* ✅ ACCESSIBILITY: Added scope="col" to table headers */}
+            <th scope="col">S.No</th>
+            <th scope="col">Product Type</th>
+            <th scope="col">Description</th>
+            <th scope="col">Quantity</th>
+            <th scope="col">Unit</th>
           </tr>
         </thead>
         <tbody>
