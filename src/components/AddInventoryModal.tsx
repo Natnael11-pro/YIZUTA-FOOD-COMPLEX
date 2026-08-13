@@ -61,75 +61,90 @@ const AddInventoryModal = ({ isOpen, onClose, onItemAdded }: AddInventoryModalPr
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+    // ✅ ACCESSIBILITY: Added role, aria-modal, and aria-labelledby for modal semantics
+    <div 
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="add-inventory-modal-title"
+    >
       <div className="bg-white rounded-xl shadow-xl w-full max-w-md mx-4">
         <div className="flex items-center justify-between p-6 border-b border-gray-200">
-          <h2 className="text-xl font-semibold text-gray-900">Add New Inventory Item</h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition">
-            <X className="w-5 h-5" />
+          <h2 id="add-inventory-modal-title" className="text-xl font-semibold text-gray-900">Add New Inventory Item</h2>
+          <button onClick={onClose} aria-label="Close modal" className="text-gray-400 hover:text-gray-600 transition">
+            <X className="w-5 h-5" aria-hidden="true" />
           </button>
         </div>
 
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           {error && (
-            <div className="p-3 bg-red-50 border border-red-200 text-red-600 text-sm rounded-lg">
+            <div className="p-3 bg-red-50 border border-red-200 text-red-600 text-sm rounded-lg" role="alert">
               {error}
             </div>
           )}
 
           <div>
-            <label className="block mb-1.5 text-sm font-medium text-gray-700">Item Name</label>
+            <label htmlFor="item-name" className="block mb-1.5 text-sm font-medium text-gray-700">Item Name</label>
             <input
+              id="item-name"
               type="text"
               value={itemName}
               onChange={(e) => setItemName(e.target.value)}
               placeholder="e.g., Orange Juice 1L"
               className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               required
+              aria-required="true"
             />
           </div>
 
           <div>
-            <label className="block mb-1.5 text-sm font-medium text-gray-700">SKU (Stock Keeping Unit)</label>
+            <label htmlFor="sku" className="block mb-1.5 text-sm font-medium text-gray-700">SKU (Stock Keeping Unit)</label>
             <input
+              id="sku"
               type="text"
               value={sku}
               onChange={(e) => setSku(e.target.value)}
               placeholder="e.g., OJ-001"
               className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               required
+              aria-required="true"
             />
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block mb-1.5 text-sm font-medium text-gray-700">Quantity</label>
+              <label htmlFor="quantity" className="block mb-1.5 text-sm font-medium text-gray-700">Quantity</label>
               <input
+                id="quantity"
                 type="number"
                 value={quantity}
                 onChange={(e) => setQuantity(e.target.value)}
                 placeholder="0"
                 className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                 required
+                aria-required="true"
               />
             </div>
             <div>
-              <label className="block mb-1.5 text-sm font-medium text-gray-700">Reorder Level</label>
+              <label htmlFor="reorder-level" className="block mb-1.5 text-sm font-medium text-gray-700">Reorder Level</label>
               <input
+                id="reorder-level"
                 type="number"
                 value={reorderLevel}
                 onChange={(e) => setReorderLevel(e.target.value)}
                 placeholder="10"
                 className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                 required
+                aria-required="true"
               />
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block mb-1.5 text-sm font-medium text-gray-700">Unit</label>
+              <label htmlFor="unit" className="block mb-1.5 text-sm font-medium text-gray-700">Unit</label>
               <select
+                id="unit"
                 value={unit}
                 onChange={(e) => setUnit(e.target.value)}
                 className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -142,8 +157,9 @@ const AddInventoryModal = ({ isOpen, onClose, onItemAdded }: AddInventoryModalPr
               </select>
             </div>
             <div>
-              <label className="block mb-1.5 text-sm font-medium text-gray-700">Status</label>
+              <label htmlFor="status" className="block mb-1.5 text-sm font-medium text-gray-700">Status</label>
               <select
+                id="status"
                 value={status}
                 onChange={(e) => setStatus(e.target.value)}
                 className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -156,8 +172,9 @@ const AddInventoryModal = ({ isOpen, onClose, onItemAdded }: AddInventoryModalPr
           </div>
 
           <div>
-            <label className="block mb-1.5 text-sm font-medium text-gray-700">Category</label>
+            <label htmlFor="category" className="block mb-1.5 text-sm font-medium text-gray-700">Category</label>
             <input
+              id="category"
               type="text"
               value={category}
               onChange={(e) => setCategory(e.target.value)}
@@ -177,6 +194,7 @@ const AddInventoryModal = ({ isOpen, onClose, onItemAdded }: AddInventoryModalPr
             <button
               type="submit"
               disabled={loading}
+              aria-label={loading ? 'Saving item' : 'Save new inventory item'}
               className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50"
             >
               {loading ? 'Saving...' : 'Save Item'}
