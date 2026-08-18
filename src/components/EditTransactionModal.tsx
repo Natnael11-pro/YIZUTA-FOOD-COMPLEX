@@ -9,6 +9,23 @@ interface EditTransactionModalProps {
   transactionId: string | null
 }
 
+// Transaction categories for dropdown
+const transactionCategories = [
+  'Sales Revenue',
+  'Payroll',
+  'Salaries',
+  'Raw Materials',
+  'Utilities',
+  'Maintenance',
+  'Equipment',
+  'Transportation',
+  'Office Supplies',
+  'Marketing',
+  'Insurance',
+  'Taxes',
+  'Other Expenses'
+]
+
 const EditTransactionModal = ({ isOpen, onClose, onTransactionUpdated, transactionId }: EditTransactionModalProps) => {
   const [type, setType] = useState<'income' | 'expense'>('income')
   const [description, setDescription] = useState('')
@@ -153,14 +170,17 @@ const EditTransactionModal = ({ isOpen, onClose, onTransactionUpdated, transacti
 
           <div>
             <label htmlFor="trans-category" className="block mb-1.5 text-sm font-medium text-gray-700">Category</label>
-            <input 
+            <select
               id="trans-category"
-              type="text" 
-              value={category} 
-              onChange={(e) => setCategory(e.target.value)} 
-              placeholder="e.g., Raw Materials, Utilities" 
-              className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" 
-            />
+              value={category}
+              onChange={(e) => setCategory(e.target.value)}
+              className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="">Select a category...</option>
+              {transactionCategories.map((cat) => (
+                <option key={cat} value={cat}>{cat}</option>
+              ))}
+            </select>
           </div>
 
           <div>
