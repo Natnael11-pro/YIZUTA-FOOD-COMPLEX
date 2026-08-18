@@ -8,6 +8,23 @@ interface AddTransactionModalProps {
   onTransactionAdded: () => void
 }
 
+// Transaction categories for dropdown
+const transactionCategories = [
+  'Sales Revenue',
+  'Payroll',
+  'Salaries',
+  'Raw Materials',
+  'Utilities',
+  'Maintenance',
+  'Equipment',
+  'Transportation',
+  'Office Supplies',
+  'Marketing',
+  'Insurance',
+  'Taxes',
+  'Other Expenses'
+]
+
 const AddTransactionModal = ({ isOpen, onClose, onTransactionAdded }: AddTransactionModalProps) => {
   const [type, setType] = useState<'income' | 'expense'>('income')
   const [description, setDescription] = useState('')
@@ -136,14 +153,17 @@ const AddTransactionModal = ({ isOpen, onClose, onTransactionAdded }: AddTransac
 
           <div>
             <label htmlFor="add-trans-category" className="block mb-1.5 text-sm font-medium text-gray-700">Category</label>
-            <input 
+            <select
               id="add-trans-category"
-              type="text" 
-              value={category} 
-              onChange={(e) => setCategory(e.target.value)} 
-              placeholder="e.g., Utilities, Sales" 
-              className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" 
-            />
+              value={category}
+              onChange={(e) => setCategory(e.target.value)}
+              className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="">Select a category...</option>
+              {transactionCategories.map((cat) => (
+                <option key={cat} value={cat}>{cat}</option>
+              ))}
+            </select>
           </div>
 
           <div>
