@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../../config/supabase'
 import { useAuth } from '../../context/AuthContext'
-import { Plus, Edit2, Trash2, FileText, UserPlus } from 'lucide-react'
+import { Plus, Edit2, Trash2, FileText, UserPlus, Printer } from 'lucide-react'
 import AddCustomerModal from '../../components/AddCustomerModal'
 
 interface Customer {
@@ -184,6 +184,7 @@ const SalesPage = () => {
     setIsCreating(true)
   }
 
+  // ✅ Invoice Download Function
   const downloadInvoice = (order: SalesOrder) => {
     const taxRate = 0.15
     const subtotal = order.total_amount
@@ -234,6 +235,157 @@ const SalesPage = () => {
     document.body.appendChild(link)
     link.click()
     document.body.removeChild(link)
+  }
+
+  // ✅ Gate Pass Print Function
+  const handleGenerateGatePass = (order: SalesOrder) => {
+    const printWindow = window.open('', '_blank')
+    if (!printWindow) {
+      alert('Please allow popups to print the gate pass')
+      return
+    }
+
+    const currentDate = new Date().toLocaleDateString()
+
+    const gatePassHTML = `
+      <!DOCTYPE html>
+      <html lang="en">
+        <head>
+          <title>Gate Pass - ${order.order_number}</title>
+          <style>
+            body { font-family: 'Times New Roman', serif; margin: 0; padding: 20px; }
+            .gate-pass-container { max-width: 800px; margin: 0 auto; padding: 40px; background: white; }
+            .header { display: flex; justify-content: space-between; border: 2px solid #000; padding: 15px; margin-bottom: 20px; }
+            .logo-section h1 { margin: 0; font-size: 24px; font-weight: bold; }
+            .logo-section p { margin: 5px 0 0 0; font-size: 14px; }
+            .info-table { width: 50%; border-collapse: collapse; }
+            .info-table td { padding: 3px; font-size: 12px; }
+            .transport-info { display: flex; justify-content: space-between; margin-bottom: 20px; padding: 10px; border: 1px solid #000; }
+            .transport-info .col { width: 48%; }
+            .transport-info p { margin: 5px 0; font-size: 14px; }
+            .goods-table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+            .goods-table th, .goods-table td { border: 1px solid black; padding: 8px; text-align: left; font-size: 14px; }
+            .goods-table th { background-color: #f0f0f0; font-weight: bold; }
+            .signatures { display: flex; justify-content: space-between; margin-top: 50px; margin-bottom: 30px; }
+            .sig-box { width: 30%; border: 1px solid #000; padding: 10px; text-align: center; }
+            .sig-box p { margin: 5px 0; font-size: 12px; }
+            .gate-section { border: 2px dashed black; padding: 15px; margin-top: 30px; }
+            .gate-section h3 { margin: 0 0 15px 0; font-size: 14px; text-transform: uppercase; }
+            .gate-grid { display: flex; justify-content: space-between; }
+            .gate-grid div { width: 48%; }
+            .gate-grid p { margin: 8px 0; font-size: 12px; }
+            .no-print { margin-top: 20px; text-align: center; }
+            .no-print button { padding: 10px 20px; font-size: 16px; cursor: pointer; margin: 0 10px; }
+            @media print {
+              body { margin: 0; padding: 0; }
+              .no-print { display: none; }
+            }
+          </style>
+        </head>
+        <body>
+          <div class="gate-pass-container">
+            <div class="header">
+              <div class="logo-section">
+                <h1>YIZUTA Food Complex</h1>
+                <p>Management System</p>
+              </div>
+              <div class="doc-info">
+                <table class="info-table">
+                  <tbody>
+                    <tr><td><strong>Document Title:</strong></td><td>DELIVERY NOTE & GATE PASS</td></tr>
+                    <tr><td><strong>Document No:</strong></td><td>GP-${order.order_number}</td></tr>
+                    <tr><td><strong>Date:</strong></td><td>${currentDate}</td></tr>
+                    <tr><td><strong>Page No:</strong></td><td>1 of 1</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <div class="transport-info">
+              <div class="col">
+                <p><strong>Customer:</strong> ${order.customers?.name || 'N/A'}</p>
+                <p><strong>Address:</strong> ${order.customers?.company || 'N/A'}</p>
+                <p><strong>Sales Order No:</strong> ${order.order_number}</p>
+              </div>
+              <div class="col">
+                <p><strong>Driver Name:</strong> ${order.driver_name || '________________'}</p>
+                <p><strong>Vehicle Plate No:</strong> ${order.vehicle_plate_no || '________________'}</p>
+                <p><strong>Mode of Transport:</strong> Road / Truck</p>
+              </div>
+            </div>
+
+            <h3>Please release the following goods:</h3>
+            <table class="goods-table">
+              <thead>
+                <tr>
+                  <th scope="col">S.No</th>
+                  <th scope="col">Product Type</th>
+                  <th scope="col">Description</th>
+                  <th scope="col">Quantity</th>
+                  <th scope="col">Unit</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>1</td>
+                  <td>Finished Good</td>
+                  <td>${order.product}</td>
+                  <td>${order.quantity}</td>
+                  <td>${order.quantity_unit || 'Boxes'}</td>
+                </tr>
+              </tbody>
+            </table>
+
+            <div class="signatures">
+              <div class="sig-box">
+                <p><strong>Prepared By (Sales):</strong></p>
+                <br />
+                <p>Sign: __________________</p>
+                <p>Date: ${currentDate}</p>
+              </div>
+              <div class="sig-box">
+                <p><strong>Issued By (Warehouse):</strong></p>
+                <br />
+                <p>Sign: __________________</p>
+                <p>Date: ${currentDate}</p>
+              </div>
+              <div class="sig-box">
+                <p><strong>Received By (Driver):</strong></p>
+                <br />
+                <p>Sign: __________________</p>
+                <p>Date: ${currentDate}</p>
+              </div>
+            </div>
+
+            <div class="gate-section">
+              <h3>FOR GATE KEEPER USE ONLY</h3>
+              <div class="gate-grid">
+                <div>
+                  <p><strong>Check In Time:</strong> ________________</p>
+                  <p><strong>Check Out Time:</strong> ________________</p>
+                </div>
+                <div>
+                  <p><strong>Gate Keeper Sign:</strong> __________________</p>
+                  <p><strong>Security Stamp:</strong></p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="no-print">
+            <button onclick="window.print()" aria-label="Print Gate Pass">Print Gate Pass</button>
+            <button onclick="window.close()" aria-label="Close window">Close</button>
+          </div>
+
+          <script>
+            window.onload = function() { window.print(); }
+          </script>
+        </body>
+      </html>
+    `
+
+    printWindow.document.write(gatePassHTML)
+    printWindow.document.close()
   }
 
   const formatCurrency = (amount: number) => {
@@ -537,6 +689,7 @@ const SalesPage = () => {
                             )}
                           </>
                         )}
+                        {/* ✅ Invoice Button for Completed Orders */}
                         {order.status === 'completed' && (
                           <button 
                             onClick={() => downloadInvoice(order)} 
@@ -545,6 +698,17 @@ const SalesPage = () => {
                             title="Download Invoice"
                           >
                             <FileText className="w-4 h-4" aria-hidden="true" />
+                          </button>
+                        )}
+                        {/* ✅ Gate Pass Button for Completed Orders */}
+                        {order.status === 'completed' && (
+                          <button 
+                            onClick={() => handleGenerateGatePass(order)} 
+                            aria-label={`Print gate pass for order ${order.order_number}`}
+                            className="p-1.5 text-gray-500 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition" 
+                            title="Print Gate Pass"
+                          >
+                            <Printer className="w-4 h-4" aria-hidden="true" />
                           </button>
                         )}
                       </div>
