@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../../config/supabase'
 import { Download, Filter, TrendingUp, TrendingDown } from 'lucide-react'
+import * as XLSX from 'xlsx'
 
 interface Transaction {
   id: string
@@ -10,6 +11,7 @@ interface Transaction {
   date: string
   category: string | null
   status: string
+  created_at: string
 }
 
 const ExpenseReportPage = () => {
@@ -25,7 +27,7 @@ const ExpenseReportPage = () => {
       const { data } = await supabase
         .from('transactions')
         .select('*')
-        .order('date', { ascending: false })
+        .order('created_at', { ascending: false })
       
       if (isMounted && data) {
         setTransactions(data)
@@ -62,15 +64,58 @@ const ExpenseReportPage = () => {
     return new Intl.NumberFormat('en-ET', { style: 'currency', currency: 'ETB' }).format(amount)
   }
 
-  const downloadTransaction = (transaction: Transaction) => {
-    const csvContent = `data:text/csv;charset=utf-8,Date,Type,Description,Category,Amount,Status\n${transaction.date},${transaction.type},${transaction.description},${transaction.category || 'N/A'},${transaction.amount},${transaction.status}`
-    const encodedUri = encodeURI(csvContent)
-    const link = document.createElement("a")
-    link.setAttribute("href", encodedUri)
-    link.setAttribute("download", `transaction_${transaction.date}_${transaction.id}.csv`)
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
+  // ✅ PROFESSIONAL "DAILY SNAPSHOT" DOWNLOAD FUNCTION
+  const downloadAllReports = async () => {
+    try {
+      // 1. Fetch ALL historical data from the database (No date filtering)
+      const { data: transactionsData } = await supabase
+        .from('transactions')
+        .select('*')
+        .order('created_at', { ascending: false })
+
+      const { data: salesOrdersData } = await supabase
+        .from('sales_orders')
+        .select('*, customers:customer_id(name, company)')
+        .order('order_date', { ascending: false })
+
+      const { data: inventoryData } = await supabase
+        .from('inventory')
+        .select('*')
+        .order('created_at', { ascending: false })
+
+      // 2. Create a new Excel Workbook
+      const wb = XLSX.utils.book_new()
+
+      // 3. Add Transactions Sheet
+      if (transactionsData && transactionsData.length > 0) {
+        const transactionsWS = XLSX.utils.json_to_sheet(transactionsData)
+        XLSX.utils.book_append_sheet(wb, transactionsWS, 'Financial Transactions')
+      }
+
+      // 4. Add Sales Orders Sheet
+      if (salesOrdersData && salesOrdersData.length > 0) {
+        const salesWS = XLSX.utils.json_to_sheet(salesOrdersData)
+        XLSX.utils.book_append_sheet(wb, salesWS, 'Sales Orders')
+      }
+
+      // 5. Add Inventory Sheet
+      if (inventoryData && inventoryData.length > 0) {
+        const inventoryWS = XLSX.utils.json_to_sheet(inventoryData)
+        XLSX.utils.book_append_sheet(wb, inventoryWS, 'Inventory Stock')
+      }
+
+      // 6. Generate filename with current Date and Time (Replaces colons with dashes for Windows compatibility)
+      const today = new Date().toISOString().split('T')[0]
+      const time = new Date().toISOString().slice(11, 19).replace(/:/g, '-')
+      const fileName = `YIZUTA_Full_Snapshot_${today}_${time}.xlsx`
+
+      // 7. Trigger the download
+      XLSX.writeFile(wb, fileName)
+      
+    } catch (error) {
+      console.error('Error downloading reports:', error)
+      alert('Failed to download reports. Please check your internet connection.')
+    }
   }
 
   return (
@@ -109,12 +154,30 @@ const ExpenseReportPage = () => {
         </div>
       </div>
 
+      {/* Daily Snapshot Download Button */}
+      <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+        <div>
+          <h3 className="text-sm font-bold text-blue-900">System Data Snapshot</h3>
+          <p className="text-xs text-blue-700 mt-1">
+            Downloads a complete backup of all Transactions, Sales Orders, and Inventory into one Excel file. 
+            The file is named with today's date and time for easy record-keeping.
+          </p>
+        </div>
+        <button
+          onClick={downloadAllReports}
+          className="flex items-center px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition whitespace-nowrap"
+          aria-label="Download complete system snapshot in Excel format"
+        >
+          <Download className="w-4 h-4 mr-2" aria-hidden="true" />
+          Download Full Snapshot (Excel)
+        </button>
+      </div>
+
       {/* Filters */}
       <div className="bg-white border border-gray-200 rounded-xl p-4 flex items-center space-x-4">
         <Filter className="w-5 h-5 text-gray-500" aria-hidden="true" />
-        <span className="text-sm font-medium text-gray-700">Filter:</span>
+        <span className="text-sm font-medium text-gray-700">Filter View:</span>
         
-        {/* ✅ ACCESSIBILITY: Added htmlFor and id for proper label association */}
         <label htmlFor="filter-type" className="sr-only">Filter by transaction type</label>
         <select 
           id="filter-type"
@@ -146,21 +209,19 @@ const ExpenseReportPage = () => {
         <table className="w-full">
           <thead className="bg-gray-50 border-b">
             <tr>
-              {/* ✅ ACCESSIBILITY: Added scope="col" to all table headers */}
               <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
               <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
               <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Description</th>
               <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Category</th>
               <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Amount</th>
               <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Export</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-200">
             {loading ? (
-              <tr><td colSpan={7} className="px-6 py-8 text-center text-gray-500">Loading...</td></tr>
+              <tr><td colSpan={6} className="px-6 py-8 text-center text-gray-500">Loading...</td></tr>
             ) : filteredTransactions.length === 0 ? (
-              <tr><td colSpan={7} className="px-6 py-8 text-center text-gray-500">No transactions found</td></tr>
+              <tr><td colSpan={6} className="px-6 py-8 text-center text-gray-500">No transactions found</td></tr>
             ) : (
               filteredTransactions.map((t: Transaction) => (
                 <tr key={t.id} className="hover:bg-gray-50">
@@ -183,17 +244,6 @@ const ExpenseReportPage = () => {
                     <span className={`px-2.5 py-1 text-xs font-medium rounded-full ${
                       t.status === 'completed' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'
                     }`}>{t.status}</span>
-                  </td>
-                  <td className="px-6 py-4">
-                    {/* ✅ ACCESSIBILITY: Added aria-label to icon button */}
-                    <button
-                      onClick={() => downloadTransaction(t)}
-                      aria-label={`Download transaction ${t.description} as CSV`}
-                      className="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                      title="Download this transaction"
-                    >
-                      <Download className="w-5 h-5" aria-hidden="true" />
-                    </button>
                   </td>
                 </tr>
               ))
