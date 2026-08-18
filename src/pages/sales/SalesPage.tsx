@@ -1,296 +1,243 @@
-/* eslint-disable react-hooks/set-state-in-effect */
 import { useState, useEffect } from 'react'
 import { supabase } from '../../config/supabase'
 import { useAuth } from '../../context/AuthContext'
-import { Users, ShoppingCart, TrendingUp, DollarSign, UserPlus, Package, Play, CheckCircle, Printer } from 'lucide-react'
+import { Plus, Edit2, Trash2, FileText, UserPlus } from 'lucide-react'
 import AddCustomerModal from '../../components/AddCustomerModal'
-import AddSalesOrderModal from '../../components/AddSalesOrderModal'
 
 interface Customer {
   id: string
   name: string
-  email: string
-  phone: string | null
   company: string | null
-  total_orders: number
-  total_spent: number
-  status: 'active' | 'inactive'
+  email: string | null
 }
 
 interface SalesOrder {
   id: string
   order_number: string
-  customer_id: string | null
+  customer_id: string
   product: string
   quantity: number
   unit_price: number
   total_amount: number
-  status: 'pending' | 'processing' | 'completed' | 'cancelled'
+  status: string
   order_date: string
-  delivery_date: string | null
-  driver_name?: string
-  vehicle_plate_no?: string
-  quantity_unit?: string
+  driver_name: string | null
+  vehicle_plate_no: string | null
+  quantity_unit: string | null
   customers?: {
     name: string
     company: string | null
+    email: string | null
   }
 }
 
 const SalesPage = () => {
   const { userRole } = useAuth()
-  // Allow Sales Personnel and Admin to edit. Executive Manager is View-Only.
-  const canModifySales = userRole === 'sales_personnel' || userRole === 'sales' || userRole === 'admin'
+  const canModifyOrders = userRole === 'sales' || userRole === 'admin'
 
-  const [customers, setCustomers] = useState<Customer[]>([])
   const [orders, setOrders] = useState<SalesOrder[]>([])
+  const [customers, setCustomers] = useState<Customer[]>([])
   const [loading, setLoading] = useState(true)
+  const [isCreating, setIsCreating] = useState(false)
   const [isCustomerModalOpen, setIsCustomerModalOpen] = useState(false)
-  const [isOrderModalOpen, setIsOrderModalOpen] = useState(false)
+  const [editingOrder, setEditingOrder] = useState<SalesOrder | null>(null)
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null)
 
-  const fetchData = async () => {
-    try {
-      const { data: customersData, error: customersError } = await supabase
-        .from('customers')
-        .select('*')
-        .order('created_at', { ascending: false })
-
-      if (customersError) throw customersError
-      setCustomers(customersData || [])
-
-      const { data: ordersData, error: ordersError } = await supabase
-        .from('sales_orders')
-        .select('*, customers:customer_id(name, company)')
-        .order('order_date', { ascending: false })
-        .limit(10)
-
-      if (ordersError) throw ordersError
-      setOrders(ordersData || [])
-    } catch (error) {
-      console.error('Error fetching data:', error)
-    } finally {
-      setLoading(false)
-    }
-  }
+  // Form state
+  const [customerId, setCustomerId] = useState('')
+  const [product, setProduct] = useState('')
+  const [quantity, setQuantity] = useState('')
+  const [unitPrice, setUnitPrice] = useState('')
+  const [orderDate, setOrderDate] = useState(new Date().toISOString().split('T')[0])
+  const [status, setStatus] = useState('pending')
+  const [driverName, setDriverName] = useState('')
+  const [vehiclePlateNo, setVehiclePlateNo] = useState('')
+  const [quantityUnit, setQuantityUnit] = useState('Boxes')
 
   useEffect(() => {
+    const fetchData = async () => {
+      const { data: ordersData } = await supabase
+        .from('sales_orders')
+        .select('*, customers:customer_id(name, company, email)')
+        .order('order_date', { ascending: false })
+      
+      const { data: customersData } = await supabase
+        .from('customers')
+        .select('*')
+        .order('name')
+
+      if (ordersData) setOrders(ordersData)
+      if (customersData) setCustomers(customersData)
+      setLoading(false)
+    }
+
     fetchData()
   }, [])
 
-  // --- ORDER STATUS WORKFLOW ---
-  const updateOrderStatus = async (orderId: string, newStatus: 'processing' | 'completed') => {
-    const actionText = newStatus === 'processing' ? 'start processing' : 'mark as completed'
-    if (!confirm(`Are you sure you want to ${actionText} this order?`)) {
+  const resetForm = () => {
+    setCustomerId('')
+    setProduct('')
+    setQuantity('')
+    setUnitPrice('')
+    setOrderDate(new Date().toISOString().split('T')[0])
+    setStatus('pending')
+    setDriverName('')
+    setVehiclePlateNo('')
+    setQuantityUnit('Boxes')
+    setEditingOrder(null)
+    setIsCreating(false)
+  }
+
+  const handleCreateOrder = async () => {
+    if (!customerId || !product || !quantity || !unitPrice) {
+      alert('Please fill in all required fields')
       return
     }
 
-    try {
-      const { error: updateOrderError } = await supabase
+    const totalAmount = parseFloat(quantity) * parseFloat(unitPrice)
+
+    const { error } = await supabase.from('sales_orders').insert({
+      customer_id: customerId,
+      product,
+      quantity: parseFloat(quantity),
+      unit_price: parseFloat(unitPrice),
+      total_amount: totalAmount,
+      order_date: orderDate,
+      status,
+      driver_name: driverName || null,
+      vehicle_plate_no: vehiclePlateNo || null,
+      quantity_unit: quantityUnit
+    })
+
+    if (error) {
+      alert('Error creating order: ' + error.message)
+    } else {
+      alert('Order created successfully!')
+      resetForm()
+      const { data: ordersData } = await supabase
         .from('sales_orders')
-        .update({ status: newStatus })
-        .eq('id', orderId)
-      
-      if (updateOrderError) throw updateOrderError
-
-      // If completed, update customer stats
-      if (newStatus === 'completed') {
-        const { data: orderData } = await supabase
-          .from('sales_orders')
-          .select('customer_id, total_amount')
-          .eq('id', orderId)
-          .single()
-
-        if (orderData?.customer_id) {
-          const { data: customerData } = await supabase
-            .from('customers')
-            .select('total_orders, total_spent')
-            .eq('id', orderData.customer_id)
-            .single()
-            
-          const newTotalOrders = (customerData?.total_orders || 0) + 1
-          const newTotalSpent = (customerData?.total_spent || 0) + Number(orderData.total_amount)
-
-          await supabase
-            .from('customers')
-            .update({ total_orders: newTotalOrders, total_spent: newTotalSpent })
-            .eq('id', orderData.customer_id)
-        }
-      }
-      
-      await fetchData()
-      alert(`Order status updated to ${newStatus.toUpperCase()}!`)
-    } catch (error) {
-      console.error('Error updating status:', error)
-      alert('Failed to update order status')
+        .select('*, customers:customer_id(name, company, email)')
+        .order('order_date', { ascending: false })
+      if (ordersData) setOrders(ordersData)
     }
   }
 
-  // --- GATE PASS GENERATION ---
-  const handleGenerateGatePass = (order: SalesOrder) => {
-    const printWindow = window.open('', '_blank')
-    if (!printWindow) {
-      alert('Please allow popups to print the gate pass')
-      return
+  const handleUpdateOrder = async () => {
+    if (!editingOrder) return
+
+    const totalAmount = parseFloat(quantity) * parseFloat(unitPrice)
+
+    const { error } = await supabase
+      .from('sales_orders')
+      .update({
+        customer_id: customerId,
+        product,
+        quantity: parseFloat(quantity),
+        unit_price: parseFloat(unitPrice),
+        total_amount: totalAmount,
+        order_date: orderDate,
+        status,
+        driver_name: driverName || null,
+        vehicle_plate_no: vehiclePlateNo || null,
+        quantity_unit: quantityUnit
+      })
+      .eq('id', editingOrder.id)
+
+    if (error) {
+      alert('Error updating order: ' + error.message)
+    } else {
+      alert('Order updated successfully!')
+      resetForm()
+      const { data: ordersData } = await supabase
+        .from('sales_orders')
+        .select('*, customers:customer_id(name, company, email)')
+        .order('order_date', { ascending: false })
+      if (ordersData) setOrders(ordersData)
     }
-
-    const customer = customers.find(c => c.id === order.customer_id)
-    const currentDate = new Date().toLocaleDateString()
-
-    const gatePassHTML = `
-      <!DOCTYPE html>
-      <html lang="en">
-        <head>
-          <title>Gate Pass - ${order.order_number}</title>
-          <style>
-            body { font-family: 'Times New Roman', serif; margin: 0; padding: 20px; }
-            .gate-pass-container { max-width: 800px; margin: 0 auto; padding: 40px; background: white; }
-            .header { display: flex; justify-content: space-between; border: 2px solid #000; padding: 15px; margin-bottom: 20px; }
-            .logo-section h1 { margin: 0; font-size: 24px; font-weight: bold; }
-            .logo-section p { margin: 5px 0 0 0; font-size: 14px; }
-            .info-table { width: 50%; border-collapse: collapse; }
-            .info-table td { padding: 3px; font-size: 12px; }
-            .transport-info { display: flex; justify-content: space-between; margin-bottom: 20px; padding: 10px; border: 1px solid #000; }
-            .transport-info .col { width: 48%; }
-            .transport-info p { margin: 5px 0; font-size: 14px; }
-            .goods-table { width: 100%; border-collapse: collapse; margin: 20px 0; }
-            .goods-table th, .goods-table td { border: 1px solid black; padding: 8px; text-align: left; font-size: 14px; }
-            .goods-table th { background-color: #f0f0f0; font-weight: bold; }
-            .signatures { display: flex; justify-content: space-between; margin-top: 50px; margin-bottom: 30px; }
-            .sig-box { width: 30%; border: 1px solid #000; padding: 10px; text-align: center; }
-            .sig-box p { margin: 5px 0; font-size: 12px; }
-            .gate-section { border: 2px dashed black; padding: 15px; margin-top: 30px; }
-            .gate-section h3 { margin: 0 0 15px 0; font-size: 14px; text-transform: uppercase; }
-            .gate-grid { display: flex; justify-content: space-between; }
-            .gate-grid div { width: 48%; }
-            .gate-grid p { margin: 8px 0; font-size: 12px; }
-            .no-print { margin-top: 20px; text-align: center; }
-            .no-print button { padding: 10px 20px; font-size: 16px; cursor: pointer; margin: 0 10px; }
-            @media print {
-              body { margin: 0; padding: 0; }
-              .no-print { display: none; }
-            }
-          </style>
-        </head>
-        <body>
-          <div class="gate-pass-container">
-            <div class="header">
-              <div class="logo-section">
-                <h1>YIZUTA Food Complex</h1>
-                <p>Management System</p>
-              </div>
-              <div class="doc-info">
-                <table class="info-table">
-                  <tbody>
-                    <tr><td><strong>Document Title:</strong></td><td>DELIVERY NOTE & GATE PASS</td></tr>
-                    <tr><td><strong>Document No:</strong></td><td>GP-${order.order_number}</td></tr>
-                    <tr><td><strong>Date:</strong></td><td>${currentDate}</td></tr>
-                    <tr><td><strong>Page No:</strong></td><td>1 of 1</td></tr>
-                  </tbody>
-                </table>
-              </div>
-            </div>
-
-            <div class="transport-info">
-              <div class="col">
-                <p><strong>Customer:</strong> ${customer?.name || order.customers?.name || 'N/A'}</p>
-                <p><strong>Address:</strong> ${customer?.company || 'N/A'}</p>
-                <p><strong>Sales Order No:</strong> ${order.order_number}</p>
-              </div>
-              <div class="col">
-                <p><strong>Driver Name:</strong> ${order.driver_name || '________________'}</p>
-                <p><strong>Vehicle Plate No:</strong> ${order.vehicle_plate_no || '________________'}</p>
-                <p><strong>Mode of Transport:</strong> Road / Truck</p>
-              </div>
-            </div>
-
-            <h3>Please release the following goods:</h3>
-            <table class="goods-table">
-              <thead>
-                <tr>
-                  <th scope="col">S.No</th>
-                  <th scope="col">Product Type</th>
-                  <th scope="col">Description</th>
-                  <th scope="col">Quantity</th>
-                  <th scope="col">Unit</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <td>1</td>
-                  <td>Finished Good</td>
-                  <td>${order.product}</td>
-                  <td>${order.quantity}</td>
-                  <td>${order.quantity_unit || 'Boxes'}</td>
-                </tr>
-              </tbody>
-            </table>
-
-            <div class="signatures">
-              <div class="sig-box">
-                <p><strong>Prepared By (Sales):</strong></p>
-                <br />
-                <p>Sign: __________________</p>
-                <p>Date: ${currentDate}</p>
-              </div>
-              <div class="sig-box">
-                <p><strong>Issued By (Warehouse):</strong></p>
-                <br />
-                <p>Sign: __________________</p>
-                <p>Date: ${currentDate}</p>
-              </div>
-              <div class="sig-box">
-                <p><strong>Received By (Driver):</strong></p>
-                <br />
-                <p>Sign: __________________</p>
-                <p>Date: ${currentDate}</p>
-              </div>
-            </div>
-
-            <div class="gate-section">
-              <h3>FOR GATE KEEPER USE ONLY</h3>
-              <div class="gate-grid">
-                <div>
-                  <p><strong>Check In Time:</strong> ________________</p>
-                  <p><strong>Check Out Time:</strong> ________________</p>
-                </div>
-                <div>
-                  <p><strong>Gate Keeper Sign:</strong> __________________</p>
-                  <p><strong>Security Stamp:</strong></p>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div class="no-print">
-            <button onclick="window.print()" aria-label="Print Gate Pass">Print Gate Pass</button>
-            <button onclick="window.close()" aria-label="Close window">Close</button>
-          </div>
-
-          <script>
-            window.onload = function() { window.print(); }
-          </script>
-        </body>
-      </html>
-    `
-
-    printWindow.document.write(gatePassHTML)
-    printWindow.document.close()
   }
 
-  // --- CALCULATIONS ---
-  const totalCustomers = customers.length
-  const activeCustomers = customers.filter(c => c.status === 'active').length
-  const totalOrders = orders.length
-  const totalRevenue = orders
-    .filter(o => o.status === 'completed')
-    .reduce((sum, o) => sum + Number(o.total_amount), 0)
+  const handleDeleteOrder = async (id: string) => {
+    const { error } = await supabase.from('sales_orders').delete().eq('id', id)
+    if (error) {
+      alert('Error deleting order: ' + error.message)
+    } else {
+      setDeleteConfirmId(null)
+      const { data: ordersData } = await supabase
+        .from('sales_orders')
+        .select('*, customers:customer_id(name, company, email)')
+        .order('order_date', { ascending: false })
+      if (ordersData) setOrders(ordersData)
+    }
+  }
+
+  const handleEditOrder = (order: SalesOrder) => {
+    setEditingOrder(order)
+    setCustomerId(order.customer_id)
+    setProduct(order.product)
+    setQuantity(order.quantity.toString())
+    setUnitPrice(order.unit_price.toString())
+    setOrderDate(order.order_date)
+    setStatus(order.status)
+    setDriverName(order.driver_name || '')
+    setVehiclePlateNo(order.vehicle_plate_no || '')
+    setQuantityUnit(order.quantity_unit || 'Boxes')
+    setIsCreating(true)
+  }
+
+  const downloadInvoice = (order: SalesOrder) => {
+    const taxRate = 0.15
+    const subtotal = order.total_amount
+    const taxAmount = subtotal * taxRate
+    const totalWithTax = subtotal + taxAmount
+
+    const csvContent = [
+      ['INVOICE'],
+      [''],
+      ['YIZUTA Food Complex'],
+      ['Dire Dawa, Ethiopia'],
+      [''],
+      ['Invoice Number:', `INV-${order.order_number}`],
+      ['Order Number:', order.order_number],
+      ['Issue Date:', new Date().toLocaleDateString()],
+      ['Order Date:', order.order_date],
+      [''],
+      ['BILL TO:'],
+      ['Customer:', order.customers?.name || 'N/A'],
+      ['Company:', order.customers?.company || 'N/A'],
+      ['Email:', order.customers?.email || 'N/A'],
+      [''],
+      ['DELIVERY DETAILS:'],
+      ['Driver Name:', order.driver_name || 'N/A'],
+      ['Vehicle Plate:', order.vehicle_plate_no || 'N/A'],
+      [''],
+      ['ITEMS:'],
+      ['Description', 'Quantity', 'Unit', 'Unit Price (ETB)', 'Total (ETB)'],
+      [order.product, order.quantity.toString(), order.quantity_unit || 'Boxes', order.unit_price.toFixed(2), order.total_amount.toFixed(2)],
+      [''],
+      ['SUMMARY:'],
+      ['Subtotal:', '', '', '', subtotal.toFixed(2)],
+      ['VAT (15%):', '', '', '', taxAmount.toFixed(2)],
+      ['TOTAL AMOUNT:', '', '', '', totalWithTax.toFixed(2)],
+      [''],
+      ['Status:', order.status.toUpperCase()],
+      [''],
+      ['Thank you for your business!'],
+      ['This is a computer-generated invoice.']
+    ].map(row => row.join(',')).join('\n')
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+    const link = document.createElement('a')
+    const url = URL.createObjectURL(blob)
+    link.setAttribute('href', url)
+    link.setAttribute('download', `Invoice_${order.order_number}_${order.order_date}.csv`)
+    link.style.visibility = 'hidden'
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+  }
 
   const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-ET', { 
-      style: 'currency', 
-      currency: 'ETB',
-      minimumFractionDigits: 2 
-    }).format(amount)
+    return new Intl.NumberFormat('en-ET', { style: 'currency', currency: 'ETB' }).format(amount)
   }
 
   const getStatusBadge = (status: string) => {
@@ -298,164 +245,326 @@ const SalesPage = () => {
       pending: 'bg-yellow-100 text-yellow-700',
       processing: 'bg-blue-100 text-blue-700',
       completed: 'bg-green-100 text-green-700',
-      cancelled: 'bg-red-100 text-red-700',
-      active: 'bg-green-100 text-green-700',
-      inactive: 'bg-gray-100 text-gray-700',
+      cancelled: 'bg-red-100 text-red-700'
     }
     return colors[status] || 'bg-gray-100 text-gray-700'
   }
 
+  if (isCreating) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <h1 className="text-3xl font-bold text-gray-900">
+            {editingOrder ? 'Edit Sales Order' : 'Create Sales Order'}
+          </h1>
+          <button 
+            onClick={resetForm} 
+            className="text-gray-600 hover:text-gray-900"
+          >
+            Cancel
+          </button>
+        </div>
+
+        <div className="bg-white border border-gray-200 rounded-xl p-6 space-y-4">
+          <div>
+            <label htmlFor="customer" className="block mb-1.5 text-sm font-medium text-gray-700">Customer</label>
+            <select 
+              id="customer"
+              value={customerId} 
+              onChange={(e) => setCustomerId(e.target.value)} 
+              className="w-full px-4 py-2.5 border border-gray-300 rounded-lg"
+              aria-required="true"
+            >
+              <option value="">Select a customer...</option>
+              {customers.map(customer => (
+                <option key={customer.id} value={customer.id}>
+                  {customer.name} {customer.company ? `(${customer.company})` : ''}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label htmlFor="product" className="block mb-1.5 text-sm font-medium text-gray-700">Product Name</label>
+            <input 
+              id="product"
+              type="text" 
+              value={product} 
+              onChange={(e) => setProduct(e.target.value)} 
+              placeholder="Type to search products..." 
+              className="w-full px-4 py-2.5 border border-gray-300 rounded-lg" 
+              required 
+              aria-required="true"
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label htmlFor="quantity" className="block mb-1.5 text-sm font-medium text-gray-700">Quantity</label>
+              <input 
+                id="quantity"
+                type="number" 
+                value={quantity} 
+                onChange={(e) => setQuantity(e.target.value)} 
+                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg" 
+                required 
+                aria-required="true"
+              />
+            </div>
+            <div>
+              <label htmlFor="unit" className="block mb-1.5 text-sm font-medium text-gray-700">Unit</label>
+              <input 
+                id="unit"
+                type="text" 
+                value={quantityUnit} 
+                onChange={(e) => setQuantityUnit(e.target.value)} 
+                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg" 
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label htmlFor="unit-price" className="block mb-1.5 text-sm font-medium text-gray-700">Unit Price (ETB)</label>
+              <input 
+                id="unit-price"
+                type="number" 
+                step="0.01" 
+                value={unitPrice} 
+                onChange={(e) => setUnitPrice(e.target.value)} 
+                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg" 
+                required 
+                aria-required="true"
+              />
+            </div>
+            <div>
+              <label htmlFor="order-date" className="block mb-1.5 text-sm font-medium text-gray-700">Order Date</label>
+              <input 
+                id="order-date"
+                type="date" 
+                value={orderDate} 
+                onChange={(e) => setOrderDate(e.target.value)} 
+                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg" 
+                required 
+                aria-required="true"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label htmlFor="status" className="block mb-1.5 text-sm font-medium text-gray-700">Status</label>
+            <select 
+              id="status"
+              value={status} 
+              onChange={(e) => setStatus(e.target.value)} 
+              className="w-full px-4 py-2.5 border border-gray-300 rounded-lg"
+            >
+              <option value="pending">Pending</option>
+              <option value="processing">Processing</option>
+              <option value="completed">Completed</option>
+              <option value="cancelled">Cancelled</option>
+            </select>
+          </div>
+
+          <div className="border-t pt-4">
+            <h3 className="text-sm font-semibold text-gray-900 mb-3">Delivery Details (For Gate Pass)</h3>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label htmlFor="driver-name" className="block mb-1.5 text-sm font-medium text-gray-700">Driver Name</label>
+                <input 
+                  id="driver-name"
+                  type="text" 
+                  value={driverName} 
+                  onChange={(e) => setDriverName(e.target.value)} 
+                  placeholder="Optional" 
+                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg" 
+                />
+              </div>
+              <div>
+                <label htmlFor="vehicle-plate" className="block mb-1.5 text-sm font-medium text-gray-700">Vehicle Plate No.</label>
+                <input 
+                  id="vehicle-plate"
+                  type="text" 
+                  value={vehiclePlateNo} 
+                  onChange={(e) => setVehiclePlateNo(e.target.value)} 
+                  placeholder="Optional" 
+                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg" 
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-end space-x-3 pt-4 border-t">
+            <button 
+              onClick={resetForm} 
+              className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200"
+            >
+              Cancel
+            </button>
+            <button 
+              onClick={editingOrder ? handleUpdateOrder : handleCreateOrder} 
+              className="px-4 py-2 text-white bg-blue-600 rounded-lg hover:bg-blue-700"
+            >
+              {editingOrder ? 'Update Order' : 'Create Order'}
+            </button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold text-gray-900">Sales Management</h1>
-        <p className="mt-1 text-sm text-gray-500">Customer management and sales orders</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900">Sales Management</h1>
+          <p className="text-sm text-gray-500">Customer management and sales orders</p>
+        </div>
+        {canModifyOrders && (
+          <button 
+            onClick={() => setIsCreating(true)} 
+            className="flex items-center px-4 py-2 text-white bg-blue-600 rounded-lg hover:bg-blue-700"
+          >
+            <Plus className="w-4 h-4 mr-2" aria-hidden="true" /> New Order
+          </button>
+        )}
       </div>
 
+      {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <div className="p-6 bg-white border border-gray-200 rounded-xl">
-          <div className="flex items-center justify-between mb-2">
-            <Users className="w-10 h-10 text-blue-600" aria-hidden="true" />
-          </div>
           <p className="text-sm text-gray-500">Total Customers</p>
-          <p className="text-2xl font-bold text-gray-900">{totalCustomers}</p>
-          <p className="text-xs text-green-600 mt-1">{activeCustomers} active</p>
+          <p className="text-2xl font-bold text-gray-900">{customers.length}</p>
+          <p className="text-xs text-green-600">{customers.length} active</p>
         </div>
-
         <div className="p-6 bg-white border border-gray-200 rounded-xl">
-          <div className="flex items-center justify-between mb-2">
-            <ShoppingCart className="w-10 h-10 text-purple-600" aria-hidden="true" />
-          </div>
           <p className="text-sm text-gray-500">Total Orders</p>
-          <p className="text-2xl font-bold text-gray-900">{totalOrders}</p>
-          <p className="text-xs text-green-600 mt-1">↗ +15.3%</p>
+          <p className="text-2xl font-bold text-gray-900">{orders.length}</p>
+          <p className="text-xs text-green-600">↗ +15.3%</p>
         </div>
-
         <div className="p-6 bg-white border border-gray-200 rounded-xl">
-          <div className="flex items-center justify-between mb-2">
-            <DollarSign className="w-10 h-10 text-green-600" aria-hidden="true" />
-          </div>
           <p className="text-sm text-gray-500">Total Revenue</p>
-          <p className="text-2xl font-bold text-gray-900">{formatCurrency(totalRevenue)}</p>
-          <p className="text-xs text-green-600 mt-1">↗ +12.5%</p>
+          <p className="text-2xl font-bold text-gray-900">
+            {formatCurrency(orders.reduce((sum, order) => sum + order.total_amount, 0))}
+          </p>
+          <p className="text-xs text-green-600">↗ +12.5%</p>
         </div>
-
         <div className="p-6 bg-white border border-gray-200 rounded-xl">
-          <div className="flex items-center justify-between mb-2">
-            <TrendingUp className="w-10 h-10 text-orange-600" aria-hidden="true" />
-          </div>
           <p className="text-sm text-gray-500">Avg Order Value</p>
           <p className="text-2xl font-bold text-gray-900">
-            {totalOrders > 0 && orders.filter(o => o.status === 'completed').length > 0 
-              ? formatCurrency(totalRevenue / orders.filter(o => o.status === 'completed').length) 
-              : 'ETB 0.00'}
+            {formatCurrency(orders.length > 0 ? orders.reduce((sum, order) => sum + order.total_amount, 0) / orders.length : 0)}
           </p>
-          <p className="text-xs text-green-600 mt-1">↗ +8.2%</p>
+          <p className="text-xs text-green-600">↗ +8.2%</p>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
-          <div className="p-4 border-b border-gray-200 flex items-center justify-between">
+      {/* Recent Orders and Top Customers Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Recent Orders Table */}
+        <div className="lg:col-span-2 bg-white border border-gray-200 rounded-xl overflow-hidden">
+          <div className="p-6 border-b border-gray-200">
             <h2 className="text-lg font-semibold text-gray-900">Recent Orders</h2>
-            {canModifySales && (
-              <button 
-                onClick={() => setIsOrderModalOpen(true)}
-                aria-label="Create new sales order"
-                className="flex items-center px-3 py-1.5 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition"
-              >
-                <Package className="w-4 h-4 mr-1" aria-hidden="true" />
-                New Order
-              </button>
-            )}
           </div>
-
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-gray-50 border-b border-gray-200">
-                <tr>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Order #</th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Customer</th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Product</th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Amount</th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                  {canModifySales && (
-                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
-                  )}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-200">
-                {loading ? (
-                  <tr><td colSpan={canModifySales ? 6 : 5} className="px-6 py-8 text-center text-gray-500">Loading...</td></tr>
-                ) : orders.length === 0 ? (
-                  <tr><td colSpan={canModifySales ? 6 : 5} className="px-6 py-8 text-center text-gray-500">No orders yet</td></tr>
-                ) : (
-                  orders.slice(0, 5).map((order) => (
-                    <tr key={order.id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 text-sm font-medium text-gray-900">{order.order_number}</td>
-                      <td className="px-6 py-4">
-                        <p className="text-sm text-gray-900">{order.customers?.name || 'Unknown'}</p>
-                        <p className="text-xs text-gray-500">{order.customers?.company || ''}</p>
-                      </td>
-                      <td className="px-6 py-4 text-sm text-gray-600">{order.product}</td>
-                      <td className="px-6 py-4 text-sm font-medium text-gray-900">{formatCurrency(Number(order.total_amount))}</td>
-                      <td className="px-6 py-4">
-                        <span className={`px-2.5 py-1 text-xs font-medium rounded-full ${getStatusBadge(order.status)}`}>
-                          {order.status.charAt(0).toUpperCase() + order.status.slice(1)}
-                        </span>
-                      </td>
-                      {canModifySales && (
-                        <td className="px-6 py-4">
-                          <div className="flex gap-1">
-                            {order.status === 'pending' && (
-                              <button
-                                onClick={() => updateOrderStatus(order.id, 'processing')}
-                                aria-label={`Start processing order ${order.order_number}`}
-                                className="flex items-center px-2 py-1 text-xs font-medium text-white bg-blue-600 rounded hover:bg-blue-700 transition"
+          <table className="w-full">
+            <thead className="bg-gray-50 border-b">
+              <tr>
+                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Order #</th>
+                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Customer</th>
+                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Product</th>
+                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Amount</th>
+                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-200">
+              {loading ? (
+                <tr><td colSpan={6} className="px-6 py-8 text-center">Loading...</td></tr>
+              ) : orders.length === 0 ? (
+                <tr><td colSpan={6} className="px-6 py-8 text-center">No orders yet</td></tr>
+              ) : (
+                orders.map((order) => (
+                  <tr key={order.id} className="hover:bg-gray-50">
+                    <td className="px-6 py-4 font-medium text-gray-900">{order.order_number}</td>
+                    <td className="px-6 py-4">
+                      <div className="text-sm text-gray-900">{order.customers?.name || 'N/A'}</div>
+                      <div className="text-xs text-gray-500">{order.customers?.company || 'N/A'}</div>
+                    </td>
+                    <td className="px-6 py-4 text-sm text-gray-700">{order.product}</td>
+                    <td className="px-6 py-4 text-sm font-medium text-gray-900">
+                      {formatCurrency(order.total_amount)}
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className={`px-2.5 py-1 text-xs font-medium rounded-full ${getStatusBadge(order.status)}`}>
+                        {order.status.charAt(0).toUpperCase() + order.status.slice(1)}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="flex items-center space-x-2">
+                        {canModifyOrders && (
+                          <>
+                            <button 
+                              onClick={() => handleEditOrder(order)} 
+                              aria-label={`Edit order ${order.order_number}`}
+                              className="p-1.5 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition" 
+                              title="Edit order"
+                            >
+                              <Edit2 className="w-4 h-4" aria-hidden="true" />
+                            </button>
+                            {deleteConfirmId === order.id ? (
+                              <div className="flex items-center space-x-1">
+                                <button 
+                                  onClick={() => handleDeleteOrder(order.id)} 
+                                  className="px-2 py-1 text-xs text-white bg-red-600 rounded hover:bg-red-700"
+                                >
+                                  Confirm
+                                </button>
+                                <button 
+                                  onClick={() => setDeleteConfirmId(null)} 
+                                  className="px-2 py-1 text-xs text-gray-600 bg-gray-100 rounded hover:bg-gray-200"
+                                >
+                                  Cancel
+                                </button>
+                              </div>
+                            ) : (
+                              <button 
+                                onClick={() => setDeleteConfirmId(order.id)} 
+                                aria-label={`Delete order ${order.order_number}`}
+                                className="p-1.5 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition" 
+                                title="Delete order"
                               >
-                                <Play className="w-3 h-3 mr-1" aria-hidden="true" />
-                                Process
+                                <Trash2 className="w-4 h-4" aria-hidden="true" />
                               </button>
                             )}
-                            {order.status === 'processing' && (
-                              <button
-                                onClick={() => updateOrderStatus(order.id, 'completed')}
-                                aria-label={`Mark order ${order.order_number} as completed`}
-                                className="flex items-center px-2 py-1 text-xs font-medium text-white bg-green-600 rounded hover:bg-green-700 transition"
-                              >
-                                <CheckCircle className="w-3 h-3 mr-1" aria-hidden="true" />
-                                Complete
-                              </button>
-                            )}
-                            {order.status === 'completed' && (
-                              <button
-                                onClick={() => handleGenerateGatePass(order)}
-                                aria-label={`Generate gate pass for order ${order.order_number}`}
-                                className="flex items-center px-2 py-1 text-xs font-medium text-purple-600 bg-purple-50 hover:bg-purple-100 rounded transition"
-                              >
-                                <Printer className="w-3 h-3 mr-1" aria-hidden="true" />
-                                Gate Pass
-                              </button>
-                            )}
-                          </div>
-                        </td>
-                      )}
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
+                          </>
+                        )}
+                        {order.status === 'completed' && (
+                          <button 
+                            onClick={() => downloadInvoice(order)} 
+                            aria-label={`Download invoice for order ${order.order_number}`}
+                            className="p-1.5 text-gray-500 hover:text-green-600 hover:bg-green-50 rounded-lg transition" 
+                            title="Download Invoice"
+                          >
+                            <FileText className="w-4 h-4" aria-hidden="true" />
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
         </div>
 
+        {/* Top Customers Section */}
         <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
           <div className="p-4 border-b border-gray-200 flex items-center justify-between">
             <h2 className="text-lg font-semibold text-gray-900">Top Customers</h2>
-            {canModifySales && (
+            {canModifyOrders && (
               <button 
                 onClick={() => setIsCustomerModalOpen(true)}
-                aria-label="Add new customer"
                 className="flex items-center px-3 py-1.5 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition"
+                aria-label="Add new customer"
               >
                 <UserPlus className="w-4 h-4 mr-1" aria-hidden="true" />
                 Add Customer
@@ -499,15 +608,21 @@ const SalesPage = () => {
         </div>
       </div>
 
+      {/* Add Customer Modal */}
       <AddCustomerModal
         isOpen={isCustomerModalOpen}
         onClose={() => setIsCustomerModalOpen(false)}
-        onCustomerAdded={fetchData}
-      />
-      <AddSalesOrderModal
-        isOpen={isOrderModalOpen}
-        onClose={() => setIsOrderModalOpen(false)}
-        onOrderAdded={fetchData}
+        onCustomerAdded={() => {
+          setIsCustomerModalOpen(false)
+          const fetchData = async () => {
+            const { data: customersData } = await supabase
+              .from('customers')
+              .select('*')
+              .order('name')
+            if (customersData) setCustomers(customersData)
+          }
+          fetchData()
+        }}
       />
     </div>
   )
