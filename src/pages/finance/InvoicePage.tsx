@@ -208,6 +208,41 @@ const InvoicePage = () => {
     if (!error) fetchData()
   }
 
+  // ✅ NEW: Download Invoice Function
+  const downloadInvoice = (invoice: Invoice) => {
+    // Create CSV content
+    const csvContent = [
+      ['INVOICE', invoice.invoice_number],
+      ['Issue Date', invoice.issue_date],
+      ['Customer', invoice.customer_name],
+      ['Email', invoice.customer_email || 'N/A'],
+      ['', ''],
+      ['Items'],
+      ['Description', 'Quantity', 'Unit Price', 'Total'],
+      ...invoice.items.map(item => [
+        item.description,
+        item.quantity,
+        item.unit_price,
+        item.total
+      ]),
+      ['', '', '', ''],
+      ['Subtotal', '', '', invoice.subtotal],
+      ['Tax', '', '', invoice.tax_amount],
+      ['TOTAL', '', '', invoice.total_amount]
+    ].map(row => row.join(',')).join('\n');
+
+    // Create download link
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `Invoice_${invoice.invoice_number}_${invoice.issue_date}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-ET', { style: 'currency', currency: 'ETB' }).format(amount)
   }
@@ -461,6 +496,7 @@ const InvoicePage = () => {
                             <Edit2 className="w-4 h-4" aria-hidden="true" />
                           </button>
                           <button 
+                            onClick={() => downloadInvoice(inv)}
                             aria-label={`Download invoice ${inv.invoice_number}`}
                             className="p-1.5 text-gray-500 hover:text-green-600 hover:bg-green-50 rounded-lg transition" 
                             title="Download invoice"
