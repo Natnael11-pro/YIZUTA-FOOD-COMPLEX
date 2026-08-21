@@ -95,7 +95,7 @@ const ProductionPage = () => {
     fetchData()
   }, [fetchData])
 
-  // ✅ UPDATED: Handle quality check approval/rejection with auto-add to warehouse
+  // ✅ UPDATED: Create transfer request instead of auto-adding to warehouse
   const handleQualityCheck = async (batchId: string, qualityStatus: 'pass' | 'fail') => {
     if (!confirm(`Mark this batch as ${qualityStatus.toUpperCase()}?`)) {
       return
@@ -122,39 +122,21 @@ const ProductionPage = () => {
 
       if (batchError) throw batchError
 
-      // ✅ If quality passed, auto-add finished goods to warehouse
+      // ✅ If quality passed, create transfer request to warehouse
       if (qualityStatus === 'pass' && batchData.quantity > 0) {
-        // Check if finished good already exists in inventory
-        const { data: existingItem } = await supabase
-          .from('inventory')
-          .select('id, quantity')
-          .eq('item_name', batchData.product)
-          .eq('category', 'finished_good')
-          .single()
+        const { error: transferError } = await supabase
+          .from('transfer_requests')
+          .insert({
+            batch_id: batchId,
+            product_name: batchData.product,
+            quantity: batchData.quantity,
+            unit: 'boxes',
+            status: 'pending'
+          })
 
-        if (existingItem) {
-          // Update existing inventory
-          const newQuantity = existingItem.quantity + batchData.quantity
-          await supabase
-            .from('inventory')
-            .update({ quantity: newQuantity })
-            .eq('id', existingItem.id)
-        } else {
-          // Create new inventory entry for finished good
-          await supabase
-            .from('inventory')
-            .insert({
-              item_name: batchData.product,
-              sku: `FG-${batchData.batch_id}`,
-              category: 'finished_good',
-              quantity: batchData.quantity,
-              unit: 'boxes',
-              reorder_level: 10,
-              status: 'in_stock'
-            })
-        }
+        if (transferError) throw transferError
 
-        alert(`Batch marked as ${qualityStatus.toUpperCase()} and added to warehouse inventory!`)
+        alert(`Batch marked as ${qualityStatus.toUpperCase()}! Transfer request created for warehouse.`)
       } else {
         alert(`Batch marked as ${qualityStatus.toUpperCase()}!`)
       }
