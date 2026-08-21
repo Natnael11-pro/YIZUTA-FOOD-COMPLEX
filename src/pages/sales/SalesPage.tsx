@@ -31,12 +31,20 @@ interface SalesOrder {
   }
 }
 
+interface InventoryItem {
+  item_name: string
+  quantity: number
+  unit: string
+  category: string
+}
+
 const SalesPage = () => {
   const { userRole } = useAuth()
   const canModifyOrders = userRole === 'sales' || userRole === 'admin'
 
   const [orders, setOrders] = useState<SalesOrder[]>([])
   const [customers, setCustomers] = useState<Customer[]>([])
+  const [inventory, setInventory] = useState<InventoryItem[]>([])
   const [loading, setLoading] = useState(true)
   const [isCreating, setIsCreating] = useState(false)
   const [isCustomerModalOpen, setIsCustomerModalOpen] = useState(false)
@@ -53,6 +61,7 @@ const SalesPage = () => {
   const [driverName, setDriverName] = useState('')
   const [vehiclePlateNo, setVehiclePlateNo] = useState('')
   const [quantityUnit, setQuantityUnit] = useState('Boxes')
+  const [stockError, setStockError] = useState('')
 
   useEffect(() => {
     const fetchData = async () => {
@@ -66,13 +75,50 @@ const SalesPage = () => {
         .select('*')
         .order('name')
 
+      // ✅ Fetch only finished goods from inventory
+      const { data: inventoryData } = await supabase
+        .from('inventory')
+        .select('item_name, quantity, unit, category')
+        .eq('category', 'finished_good')
+        .gt('quantity', 0)
+
       if (ordersData) setOrders(ordersData)
       if (customersData) setCustomers(customersData)
+      if (inventoryData) setInventory(inventoryData)
       setLoading(false)
     }
 
     fetchData()
   }, [])
+
+  // ✅ Check stock when product is selected
+  useEffect(() => {
+    const checkStock = async () => {
+      if (!product) {
+        setStockError('')
+        return
+      }
+
+      const item = inventory.find(i => i.item_name.toLowerCase() === product.toLowerCase())
+      
+      if (!item) {
+        setStockError('Product not found in finished goods inventory')
+      } else {
+        const qty = parseFloat(quantity)
+        if (!isNaN(qty) && qty > item.quantity) {
+          setStockError(`Insufficient stock! Only ${item.quantity} ${item.unit} available.`)
+        } else {
+          setStockError('')
+        }
+      }
+    }
+
+    const timer = setTimeout(() => {
+      checkStock()
+    }, 500)
+
+    return () => clearTimeout(timer)
+  }, [product, quantity, inventory])
 
   const resetForm = () => {
     setCustomerId('')
@@ -86,11 +132,17 @@ const SalesPage = () => {
     setQuantityUnit('Boxes')
     setEditingOrder(null)
     setIsCreating(false)
+    setStockError('')
   }
 
   const handleCreateOrder = async () => {
     if (!customerId || !product || !quantity || !unitPrice) {
       alert('Please fill in all required fields')
+      return
+    }
+
+    if (stockError) {
+      alert('Cannot create order: ' + stockError)
       return
     }
 
@@ -319,8 +371,8 @@ const SalesPage = () => {
               <thead>
                 <tr>
                   <th scope="col">S.No</th>
-                  <th scope="col">Product Type</th>
-                  <th scope="col">Description</th>
+                  <th scope="col">Category</th>
+                  <th scope="col">Product Name</th>
                   <th scope="col">Quantity</th>
                   <th scope="col">Unit</th>
                 </tr>
@@ -437,17 +489,35 @@ const SalesPage = () => {
           </div>
 
           <div>
-            <label htmlFor="product" className="block mb-1.5 text-sm font-medium text-gray-700">Product Name</label>
+            <label htmlFor="product" className="block mb-1.5 text-sm font-medium text-gray-700">Product Name (Finished Goods)</label>
             <input 
               id="product"
               type="text" 
               value={product} 
               onChange={(e) => setProduct(e.target.value)} 
-              placeholder="Type to search products..." 
+              placeholder="Type to search finished products..." 
               className="w-full px-4 py-2.5 border border-gray-300 rounded-lg" 
               required 
               aria-required="true"
             />
+            {/* ✅ Show available finished goods */}
+            {product && inventory.length > 0 && (
+              <div className="mt-2 p-2 bg-blue-50 border border-blue-200 rounded text-xs">
+                <p className="font-medium text-blue-900">Available Finished Goods:</p>
+                <ul className="mt-1 space-y-1">
+                  {inventory.map((item, idx) => (
+                    <li key={idx} className="text-blue-700">
+                      {item.item_name} - {item.quantity} {item.unit} available
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            {stockError && (
+              <p className={`text-xs mt-1 font-medium ${stockError.includes('Insufficient') ? 'text-red-600' : 'text-orange-600'}`}>
+                {stockError}
+              </p>
+            )}
           </div>
 
           <div className="grid grid-cols-2 gap-4">
@@ -458,7 +528,9 @@ const SalesPage = () => {
                 type="number" 
                 value={quantity} 
                 onChange={(e) => setQuantity(e.target.value)} 
-                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg" 
+                className={`w-full px-4 py-2.5 border rounded-lg ${
+                  stockError ? 'border-red-300 bg-red-50' : 'border-gray-300'
+                }`} 
                 required 
                 aria-required="true"
               />
@@ -555,7 +627,10 @@ const SalesPage = () => {
             </button>
             <button 
               onClick={editingOrder ? handleUpdateOrder : handleCreateOrder} 
-              className="px-4 py-2 text-white bg-blue-600 rounded-lg hover:bg-blue-700"
+              disabled={!!stockError}
+              className={`px-4 py-2 text-white rounded-lg ${
+                stockError ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'
+              }`}
             >
               {editingOrder ? 'Update Order' : 'Create Order'}
             </button>
