@@ -2,7 +2,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '../../config/supabase'
 import { useAuth } from '../../context/AuthContext'
-import { Package, Truck, ArrowUpRight, AlertTriangle, Plus, Edit2 } from 'lucide-react'
+import { Package, Truck, ArrowUpRight, AlertTriangle, Plus, Edit2, CheckCircle, XCircle } from 'lucide-react'
 import AddInventoryModal from '../../components/AddInventoryModal'
 import EditInventoryModal from '../../components/EditInventoryModal'
 import AddShipmentModal from '../../components/AddShipmentModal'
@@ -42,6 +42,18 @@ interface MaterialRequest {
   created_at: string
 }
 
+interface TransferRequest {
+  id: string
+  batch_id: string
+  product_name: string
+  quantity: number
+  unit: string
+  status: 'pending' | 'accepted' | 'rejected'
+  created_at: string
+  reviewed_at?: string
+  rejection_reason?: string
+}
+
 const WarehousePage = () => {
   const { userRole } = useAuth()
   
@@ -51,8 +63,10 @@ const WarehousePage = () => {
   const [inventory, setInventory] = useState<InventoryItem[]>([])
   const [shipments, setShipments] = useState<Shipment[]>([])
   const [pendingRequests, setPendingRequests] = useState<MaterialRequest[]>([])
+  const [transferRequests, setTransferRequests] = useState<TransferRequest[]>([])
   const [reqLoading, setReqLoading] = useState(false)
   const [loading, setLoading] = useState(true)
+  const [activeTab, setActiveTab] = useState<'inventory' | 'transfers'>('inventory')
   
   const [isAddModalOpen, setIsAddModalOpen] = useState(false)
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
@@ -74,6 +88,21 @@ const WarehousePage = () => {
     }
   }, [])
 
+  const fetchTransferRequests = useCallback(async () => {
+    try {
+      const { data, error } = await supabase
+        .from('transfer_requests')
+        .select('*')
+        .eq('status', 'pending')
+        .order('created_at', { ascending: false })
+
+      if (error) throw error
+      setTransferRequests(data || [])
+    } catch (error) {
+      console.error('Error fetching transfer requests:', error)
+    }
+  }, [])
+
   const handleRequestAction = async (id: string, action: 'approved' | 'rejected') => {
     setReqLoading(true)
     try {
@@ -90,6 +119,91 @@ const WarehousePage = () => {
       console.error('Error updating request:', error)
     } finally {
       setReqLoading(false)
+    }
+  }
+
+  // ✅ Accept transfer request - add to inventory
+  const handleAcceptTransfer = async (requestId: string, request: TransferRequest) => {
+    if (!confirm(`Accept ${request.quantity} ${request.unit} of ${request.product_name} into warehouse?`)) {
+      return
+    }
+
+    try {
+      // Check if item already exists in inventory
+      const existingItem = inventory.find(
+        item => item.item_name.toLowerCase() === request.product_name.toLowerCase()
+      )
+
+      if (existingItem) {
+        // Update existing inventory
+        const newQuantity = existingItem.quantity + request.quantity
+        const { error } = await supabase
+          .from('inventory')
+          .update({ quantity: newQuantity })
+          .eq('id', existingItem.id)
+
+        if (error) throw error
+      } else {
+        // Create new inventory entry
+        const { error } = await supabase
+          .from('inventory')
+          .insert({
+            item_name: request.product_name,
+            sku: `FG-${request.batch_id.slice(0, 8).toUpperCase()}`,
+            category: 'finished_good',
+            quantity: request.quantity,
+            unit: request.unit,
+            reorder_level: 10,
+            status: 'in_stock'
+          })
+
+        if (error) throw error
+      }
+
+      // Update transfer request status
+      const { error: updateError } = await supabase
+        .from('transfer_requests')
+        .update({
+          status: 'accepted',
+          reviewed_at: new Date().toISOString(),
+          reviewed_by: (await supabase.auth.getUser()).data.user?.id
+        })
+        .eq('id', requestId)
+
+      if (updateError) throw updateError
+
+      alert('Transfer accepted! Inventory updated.')
+      await fetchData()
+      await fetchTransferRequests()
+    } catch (error) {
+      console.error('Error accepting transfer:', error)
+      alert('Failed to accept transfer')
+    }
+  }
+
+  // ✅ Reject transfer request
+  const handleRejectTransfer = async (requestId: string) => {
+    const reason = prompt('Enter rejection reason (e.g., Warehouse full, No space):')
+    if (!reason) return
+
+    try {
+      const { error } = await supabase
+        .from('transfer_requests')
+        .update({
+          status: 'rejected',
+          reviewed_at: new Date().toISOString(),
+          reviewed_by: (await supabase.auth.getUser()).data.user?.id,
+          rejection_reason: reason
+        })
+        .eq('id', requestId)
+
+      if (error) throw error
+
+      alert('Transfer rejected.')
+      await fetchTransferRequests()
+    } catch (error) {
+      console.error('Error rejecting transfer:', error)
+      alert('Failed to reject transfer')
     }
   }
 
@@ -114,13 +228,14 @@ const WarehousePage = () => {
 
       // Fetch requests for the notification center
       await fetchPendingRequests()
+      await fetchTransferRequests()
 
     } catch (error) {
       console.error('Error fetching data:', error)
     } finally {
       setLoading(false)
     }
-  }, [fetchPendingRequests])
+  }, [fetchPendingRequests, fetchTransferRequests])
 
   useEffect(() => {
     fetchData()
@@ -264,72 +379,205 @@ const WarehousePage = () => {
         </div>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      {/* Tabs */}
+      <div className="flex space-x-4 border-b border-gray-200">
+        <button
+          onClick={() => setActiveTab('inventory')}
+          className={`px-4 py-2 text-sm font-medium ${
+            activeTab === 'inventory'
+              ? 'text-blue-600 border-b-2 border-blue-600'
+              : 'text-gray-500 hover:text-gray-700'
+          }`}
+        >
+          Inventory Overview
+        </button>
+        <button
+          onClick={() => setActiveTab('transfers')}
+          className={`px-4 py-2 text-sm font-medium ${
+            activeTab === 'transfers'
+              ? 'text-blue-600 border-b-2 border-blue-600'
+              : 'text-gray-500 hover:text-gray-700'
+          }`}
+        >
+          Pending Transfers {transferRequests.length > 0 && `(${transferRequests.length})`}
+        </button>
+      </div>
+
+      {/* Inventory Tab */}
+      {activeTab === 'inventory' && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+            <div className="p-4 border-b border-gray-200 flex items-center justify-between">
+              <h2 className="text-lg font-semibold text-gray-900">Inventory Overview</h2>
+              {canModifyWarehouse && (
+                <div className="flex gap-2">
+                  <button 
+                    onClick={() => setIsShipmentModalOpen(true)}
+                    aria-label="Record new shipment"
+                    className="flex items-center px-3 py-1.5 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 transition"
+                  >
+                    <Truck className="w-4 h-4 mr-1" aria-hidden="true" />
+                    Shipment
+                  </button>
+                  <button 
+                    onClick={() => setIsAddModalOpen(true)}
+                    aria-label="Add new inventory item"
+                    className="flex items-center px-3 py-1.5 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition"
+                  >
+                    <Plus className="w-4 h-4 mr-1" aria-hidden="true" />
+                    Add Item
+                  </button>
+                </div>
+              )}
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-gray-50 border-b border-gray-200">
+                  <tr>
+                    {/* ✅ ACCESSIBILITY: Added scope="col" to all table headers */}
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Item</th>
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">SKU</th>
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Quantity</th>
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                    {canModifyWarehouse && (
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+                    )}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-200">
+                  {loading ? (
+                    <tr><td colSpan={canModifyWarehouse ? 5 : 4} className="px-6 py-8 text-center text-gray-500">Loading...</td></tr>
+                  ) : inventory.length === 0 ? (
+                    <tr><td colSpan={canModifyWarehouse ? 5 : 4} className="px-6 py-8 text-center text-gray-500">No inventory items yet</td></tr>
+                  ) : (
+                    inventory.slice(0, 5).map((item: InventoryItem) => (
+                      <tr key={item.id} className="hover:bg-gray-50">
+                        <td className="px-6 py-4 text-sm font-medium text-gray-900">{item.item_name}</td>
+                        <td className="px-6 py-4 text-sm text-gray-500">{item.sku}</td>
+                        <td className="px-6 py-4">
+                          <p className="text-sm font-medium text-gray-900">{item.quantity} {item.unit}</p>
+                          <p className="text-xs text-gray-500">Reorder: {item.reorder_level} {item.unit}</p>
+                        </td>
+                        <td className="px-6 py-4">{getStatusBadge(item)}</td>
+                        {canModifyWarehouse && (
+                          <td className="px-6 py-4">
+                            <button 
+                              onClick={() => handleEdit(item)} 
+                              aria-label={`Edit inventory item ${item.item_name}`}
+                              className="text-blue-600 hover:text-blue-800 text-sm font-medium"
+                            >
+                              <Edit2 className="w-4 h-4" aria-hidden="true" />
+                            </button>
+                          </td>
+                        )}
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+            <div className="p-4 border-b border-gray-200">
+              <h2 className="text-lg font-semibold text-gray-900">Recent Shipments</h2>
+            </div>
+
+            <div className="divide-y divide-gray-200">
+              {loading ? (
+                <div className="p-8 text-center text-gray-500">Loading...</div>
+              ) : shipments.length === 0 ? (
+                <div className="p-8 text-center text-gray-500">No shipments yet</div>
+              ) : (
+                shipments.slice(0, 5).map((shipment: Shipment) => (
+                  <div key={shipment.id} className="p-4 hover:bg-gray-50">
+                    <div className="flex items-start justify-between">
+                      <div className="flex items-start">
+                        {shipment.type === 'inbound' ? (
+                          <Truck className="w-5 h-5 text-green-600 mr-3 mt-0.5" aria-hidden="true" />
+                        ) : (
+                          <ArrowUpRight className="w-5 h-5 text-blue-600 mr-3 mt-0.5" aria-hidden="true" />
+                        )}
+                        <div>
+                          <p className="text-sm font-medium text-gray-900">
+                            {shipment.type === 'inbound' ? 'Inbound' : 'Outbound'} - {shipment.inventory?.item_name || 'Unknown Item'}
+                          </p>
+                          <p className="text-xs text-gray-500 mt-1">
+                            {shipment.type === 'inbound' ? `From: ${shipment.supplier || 'N/A'}` : `To: ${shipment.client || 'N/A'}`}
+                          </p>
+                          <p className="text-xs text-gray-500 mt-1">
+                            {new Date(shipment.created_at).toLocaleDateString()}
+                          </p>
+                        </div>
+                      </div>
+                      <span className={`px-2.5 py-1 text-xs font-medium rounded-full ${
+                        shipment.type === 'inbound' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'
+                      }`}>
+                        {shipment.quantity} units
+                      </span>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Transfer Requests Tab */}
+      {activeTab === 'transfers' && (
         <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
-          <div className="p-4 border-b border-gray-200 flex items-center justify-between">
-            <h2 className="text-lg font-semibold text-gray-900">Inventory Overview</h2>
-            {canModifyWarehouse && (
-              <div className="flex gap-2">
-                <button 
-                  onClick={() => setIsShipmentModalOpen(true)}
-                  aria-label="Record new shipment"
-                  className="flex items-center px-3 py-1.5 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 transition"
-                >
-                  <Truck className="w-4 h-4 mr-1" aria-hidden="true" />
-                  Shipment
-                </button>
-                <button 
-                  onClick={() => setIsAddModalOpen(true)}
-                  aria-label="Add new inventory item"
-                  className="flex items-center px-3 py-1.5 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition"
-                >
-                  <Plus className="w-4 h-4 mr-1" aria-hidden="true" />
-                  Add Item
-                </button>
-              </div>
-            )}
+          <div className="p-4 border-b border-gray-200">
+            <h2 className="text-lg font-semibold text-gray-900">Pending Production Transfers</h2>
+            <p className="text-sm text-gray-500 mt-1">Review and accept/reject finished goods from production</p>
           </div>
 
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead className="bg-gray-50 border-b border-gray-200">
                 <tr>
-                  {/* ✅ ACCESSIBILITY: Added scope="col" to all table headers */}
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Item</th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">SKU</th>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Product</th>
                   <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Quantity</th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                  {canModifyWarehouse && (
-                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
-                  )}
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Requested At</th>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
                 {loading ? (
-                  <tr><td colSpan={canModifyWarehouse ? 5 : 4} className="px-6 py-8 text-center text-gray-500">Loading...</td></tr>
-                ) : inventory.length === 0 ? (
-                  <tr><td colSpan={canModifyWarehouse ? 5 : 4} className="px-6 py-8 text-center text-gray-500">No inventory items yet</td></tr>
+                  <tr><td colSpan={4} className="px-6 py-8 text-center text-gray-500">Loading...</td></tr>
+                ) : transferRequests.length === 0 ? (
+                  <tr><td colSpan={4} className="px-6 py-8 text-center text-gray-500">No pending transfer requests</td></tr>
                 ) : (
-                  inventory.slice(0, 5).map((item: InventoryItem) => (
-                    <tr key={item.id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 text-sm font-medium text-gray-900">{item.item_name}</td>
-                      <td className="px-6 py-4 text-sm text-gray-500">{item.sku}</td>
-                      <td className="px-6 py-4">
-                        <p className="text-sm font-medium text-gray-900">{item.quantity} {item.unit}</p>
-                        <p className="text-xs text-gray-500">Reorder: {item.reorder_level} {item.unit}</p>
+                  transferRequests.map((request) => (
+                    <tr key={request.id} className="hover:bg-gray-50">
+                      <td className="px-6 py-4 text-sm font-medium text-gray-900">{request.product_name}</td>
+                      <td className="px-6 py-4 text-sm text-gray-600">
+                        {request.quantity} {request.unit}
                       </td>
-                      <td className="px-6 py-4">{getStatusBadge(item)}</td>
-                      {canModifyWarehouse && (
-                        <td className="px-6 py-4">
-                          <button 
-                            onClick={() => handleEdit(item)} 
-                            aria-label={`Edit inventory item ${item.item_name}`}
-                            className="text-blue-600 hover:text-blue-800 text-sm font-medium"
-                          >
-                            <Edit2 className="w-4 h-4" aria-hidden="true" />
-                          </button>
-                        </td>
-                      )}
+                      <td className="px-6 py-4 text-sm text-gray-600">
+                        {new Date(request.created_at).toLocaleString()}
+                      </td>
+                      <td className="px-6 py-4">
+                        {canModifyWarehouse && (
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => handleAcceptTransfer(request.id, request)}
+                              className="flex items-center px-3 py-1.5 text-xs font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 transition"
+                            >
+                              <CheckCircle className="w-3 h-3 mr-1" aria-hidden="true" />
+                              Accept
+                            </button>
+                            <button
+                              onClick={() => handleRejectTransfer(request.id)}
+                              className="flex items-center px-3 py-1.5 text-xs font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 transition"
+                            >
+                              <XCircle className="w-3 h-3 mr-1" aria-hidden="true" />
+                              Reject
+                            </button>
+                          </div>
+                        )}
+                      </td>
                     </tr>
                   ))
                 )}
@@ -337,51 +585,7 @@ const WarehousePage = () => {
             </table>
           </div>
         </div>
-
-        <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
-          <div className="p-4 border-b border-gray-200">
-            <h2 className="text-lg font-semibold text-gray-900">Recent Shipments</h2>
-          </div>
-
-          <div className="divide-y divide-gray-200">
-            {loading ? (
-              <div className="p-8 text-center text-gray-500">Loading...</div>
-            ) : shipments.length === 0 ? (
-              <div className="p-8 text-center text-gray-500">No shipments yet</div>
-            ) : (
-              shipments.slice(0, 5).map((shipment: Shipment) => (
-                <div key={shipment.id} className="p-4 hover:bg-gray-50">
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-start">
-                      {shipment.type === 'inbound' ? (
-                        <Truck className="w-5 h-5 text-green-600 mr-3 mt-0.5" aria-hidden="true" />
-                      ) : (
-                        <ArrowUpRight className="w-5 h-5 text-blue-600 mr-3 mt-0.5" aria-hidden="true" />
-                      )}
-                      <div>
-                        <p className="text-sm font-medium text-gray-900">
-                          {shipment.type === 'inbound' ? 'Inbound' : 'Outbound'} - {shipment.inventory?.item_name || 'Unknown Item'}
-                        </p>
-                        <p className="text-xs text-gray-500 mt-1">
-                          {shipment.type === 'inbound' ? `From: ${shipment.supplier || 'N/A'}` : `To: ${shipment.client || 'N/A'}`}
-                        </p>
-                        <p className="text-xs text-gray-500 mt-1">
-                          {new Date(shipment.created_at).toLocaleDateString()}
-                        </p>
-                      </div>
-                    </div>
-                    <span className={`px-2.5 py-1 text-xs font-medium rounded-full ${
-                      shipment.type === 'inbound' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'
-                    }`}>
-                      {shipment.quantity} units
-                    </span>
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-        </div>
-      </div>
+      )}
 
       <AddInventoryModal
         isOpen={isAddModalOpen}
