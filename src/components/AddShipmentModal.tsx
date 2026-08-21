@@ -13,6 +13,7 @@ interface InventoryItem {
   item_name: string
   sku: string
   quantity: number
+  category: string
 }
 
 const AddShipmentModal = ({ isOpen, onClose, onShipmentAdded }: AddShipmentModalProps) => {
@@ -25,10 +26,18 @@ const AddShipmentModal = ({ isOpen, onClose, onShipmentAdded }: AddShipmentModal
   const [notes, setNotes] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  
+  // ✅ NEW: State for creating new items during inbound
+  const [isNewItem, setIsNewItem] = useState(false)
+  const [newItemName, setNewItemName] = useState('')
+  const [newItemSku, setNewItemSku] = useState('')
+  const [newItemCategory, setNewItemCategory] = useState('raw_material')
+  const [newItemUnit, setNewItemUnit] = useState('units')
+  const [newItemReorderLevel, setNewItemReorderLevel] = useState('10')
 
   useEffect(() => {
     if (isOpen) {
-      supabase.from('inventory').select('id, item_name, sku, quantity').then(({ data }) => {
+      supabase.from('inventory').select('id, item_name, sku, quantity, category').then(({ data }) => {
         if (data) setInventory(data as InventoryItem[])
       })
     }
@@ -42,10 +51,43 @@ const AddShipmentModal = ({ isOpen, onClose, onShipmentAdded }: AddShipmentModal
     setLoading(true)
 
     try {
-      const { error } = await supabase
+      let finalItemId = itemId
+
+      // ✅ If creating new item during inbound
+      if (type === 'inbound' && isNewItem) {
+        if (!newItemName || !newItemSku || !quantity) {
+          throw new Error('Please fill in all required fields for new item')
+        }
+
+        // First, create the new inventory item
+        const { data: newItemData, error: newItemError } = await supabase
+          .from('inventory')
+          .insert({
+            item_name: newItemName,
+            sku: newItemSku,
+            category: newItemCategory,
+            unit: newItemUnit,
+            quantity: parseInt(quantity),
+            reorder_level: parseInt(newItemReorderLevel),
+            status: 'in_stock'
+          })
+          .select()
+          .single()
+
+        if (newItemError) throw newItemError
+        finalItemId = newItemData.id
+      } else {
+        // Using existing item
+        if (!itemId) {
+          throw new Error('Please select an item')
+        }
+      }
+
+      // Create shipment record
+      const { error: shipmentError } = await supabase
         .from('shipments')
         .insert({
-          item_id: itemId,
+          item_id: finalItemId,
           type,
           quantity: parseInt(quantity),
           supplier: type === 'inbound' ? supplier : null,
@@ -53,30 +95,40 @@ const AddShipmentModal = ({ isOpen, onClose, onShipmentAdded }: AddShipmentModal
           notes: notes || null
         })
 
-      if (error) throw error
+      if (shipmentError) throw shipmentError
 
-      // Update inventory quantity
-      const item = inventory.find(i => i.id === itemId)
-      if (item) {
-        const newQuantity = type === 'inbound' 
-          ? item.quantity + parseInt(quantity)
-          : item.quantity - parseInt(quantity)
+      // Update inventory quantity (only for existing items or after creating new item)
+      if (!isNewItem || type === 'inbound') {
+        const item = inventory.find(i => i.id === finalItemId)
+        if (item || type === 'inbound') {
+          const currentQty = item ? item.quantity : 0
+          const newQuantity = type === 'inbound' 
+            ? currentQty + parseInt(quantity)
+            : currentQty - parseInt(quantity)
 
-        await supabase
-          .from('inventory')
-          .update({ quantity: newQuantity })
-          .eq('id', itemId)
+          await supabase
+            .from('inventory')
+            .update({ quantity: newQuantity })
+            .eq('id', finalItemId)
+        }
       }
 
       alert('Shipment recorded successfully!')
       onShipmentAdded()
       onClose()
       
+      // Reset all form fields
       setItemId('')
       setQuantity('')
       setSupplier('')
       setClient('')
       setNotes('')
+      setIsNewItem(false)
+      setNewItemName('')
+      setNewItemSku('')
+      setNewItemCategory('raw_material')
+      setNewItemUnit('units')
+      setNewItemReorderLevel('10')
     } catch (err: unknown) {
       console.error('Error creating shipment:', err)
       const errorMessage = err instanceof Error ? err.message : 'Failed to create shipment'
@@ -87,7 +139,6 @@ const AddShipmentModal = ({ isOpen, onClose, onShipmentAdded }: AddShipmentModal
   }
 
   return (
-    // ✅ ACCESSIBILITY: Added role, aria-modal, and aria-labelledby for modal semantics
     <div 
       className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"
       role="dialog"
@@ -123,22 +174,114 @@ const AddShipmentModal = ({ isOpen, onClose, onShipmentAdded }: AddShipmentModal
             </select>
           </div>
 
-          <div>
-            <label htmlFor="item-select" className="block mb-1.5 text-sm font-medium text-gray-700">Item</label>
-            <select 
-              id="item-select"
-              value={itemId} 
-              onChange={(e) => setItemId(e.target.value)} 
-              className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" 
-              required
-              aria-required="true"
-            >
-              <option value="">Select an item...</option>
-              {inventory.map((item) => (
-                <option key={item.id} value={item.id}>{item.item_name} ({item.sku})</option>
-              ))}
-            </select>
-          </div>
+          {/* ✅ NEW: Toggle for creating new item during inbound */}
+          {type === 'inbound' && (
+            <div className="flex items-center space-x-2 p-3 bg-blue-50 rounded-lg">
+              <input
+                type="checkbox"
+                id="is-new-item"
+                checked={isNewItem}
+                onChange={(e) => setIsNewItem(e.target.checked)}
+                className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+              />
+              <label htmlFor="is-new-item" className="text-sm font-medium text-blue-900">
+                This is a NEW item not in inventory
+              </label>
+            </div>
+          )}
+
+          {/* ✅ NEW: Form fields for new item */}
+          {type === 'inbound' && isNewItem ? (
+            <div className="space-y-3 p-3 bg-gray-50 rounded-lg border border-gray-200">
+              <h3 className="text-sm font-semibold text-gray-700">New Item Details</h3>
+              
+              <div>
+                <label htmlFor="new-item-name" className="block mb-1 text-sm text-gray-700">Item Name *</label>
+                <input
+                  id="new-item-name"
+                  type="text"
+                  value={newItemName}
+                  onChange={(e) => setNewItemName(e.target.value)}
+                  placeholder="e.g., Sweet Flour"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  required
+                />
+              </div>
+
+              <div>
+                <label htmlFor="new-item-sku" className="block mb-1 text-sm text-gray-700">SKU *</label>
+                <input
+                  id="new-item-sku"
+                  type="text"
+                  value={newItemSku}
+                  onChange={(e) => setNewItemSku(e.target.value)}
+                  placeholder="e.g., OB-1"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  required
+                />
+              </div>
+
+              <div>
+                <label htmlFor="new-item-category" className="block mb-1 text-sm text-gray-700">Category</label>
+                <select
+                  id="new-item-category"
+                  value={newItemCategory}
+                  onChange={(e) => setNewItemCategory(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="raw_material">Raw Material</option>
+                  <option value="finished_good">Finished Good</option>
+                  <option value="packaging">Packaging</option>
+                </select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label htmlFor="new-item-unit" className="block mb-1 text-sm text-gray-700">Unit</label>
+                  <select
+                    id="new-item-unit"
+                    value={newItemUnit}
+                    onChange={(e) => setNewItemUnit(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="units">Units</option>
+                    <option value="kg">Kilograms (kg)</option>
+                    <option value="boxes">Boxes</option>
+                    <option value="liters">Liters (L)</option>
+                  </select>
+                </div>
+                <div>
+                  <label htmlFor="new-item-reorder" className="block mb-1 text-sm text-gray-700">Reorder Level</label>
+                  <input
+                    id="new-item-reorder"
+                    type="number"
+                    value={newItemReorderLevel}
+                    onChange={(e) => setNewItemReorderLevel(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div>
+              <label htmlFor="item-select" className="block mb-1.5 text-sm font-medium text-gray-700">Item</label>
+              <select 
+                id="item-select"
+                value={itemId} 
+                onChange={(e) => setItemId(e.target.value)} 
+                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" 
+                required={!isNewItem || type === 'outbound'}
+                aria-required="true"
+              >
+                <option value="">Select an item...</option>
+                {inventory.map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {item.item_name} ({item.sku}) - {item.category}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
 
           <div>
             <label htmlFor="shipment-quantity" className="block mb-1.5 text-sm font-medium text-gray-700">Quantity</label>
