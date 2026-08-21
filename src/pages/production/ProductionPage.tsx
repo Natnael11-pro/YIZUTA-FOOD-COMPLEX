@@ -95,6 +95,77 @@ const ProductionPage = () => {
     fetchData()
   }, [fetchData])
 
+  // ✅ UPDATED: Handle quality check approval/rejection with auto-add to warehouse
+  const handleQualityCheck = async (batchId: string, qualityStatus: 'pass' | 'fail') => {
+    if (!confirm(`Mark this batch as ${qualityStatus.toUpperCase()}?`)) {
+      return
+    }
+
+    try {
+      // Get batch details first
+      const { data: batchData } = await supabase
+        .from('batches')
+        .select('*')
+        .eq('id', batchId)
+        .single()
+
+      if (!batchData) throw new Error('Batch not found')
+
+      // Update batch status
+      const { error: batchError } = await supabase
+        .from('batches')
+        .update({ 
+          status: 'completed',
+          quality_status: qualityStatus
+        })
+        .eq('id', batchId)
+
+      if (batchError) throw batchError
+
+      // ✅ If quality passed, auto-add finished goods to warehouse
+      if (qualityStatus === 'pass' && batchData.quantity > 0) {
+        // Check if finished good already exists in inventory
+        const { data: existingItem } = await supabase
+          .from('inventory')
+          .select('id, quantity')
+          .eq('item_name', batchData.product)
+          .eq('category', 'finished_good')
+          .single()
+
+        if (existingItem) {
+          // Update existing inventory
+          const newQuantity = existingItem.quantity + batchData.quantity
+          await supabase
+            .from('inventory')
+            .update({ quantity: newQuantity })
+            .eq('id', existingItem.id)
+        } else {
+          // Create new inventory entry for finished good
+          await supabase
+            .from('inventory')
+            .insert({
+              item_name: batchData.product,
+              sku: `FG-${batchData.batch_id}`,
+              category: 'finished_good',
+              quantity: batchData.quantity,
+              unit: 'boxes',
+              reorder_level: 10,
+              status: 'in_stock'
+            })
+        }
+
+        alert(`Batch marked as ${qualityStatus.toUpperCase()} and added to warehouse inventory!`)
+      } else {
+        alert(`Batch marked as ${qualityStatus.toUpperCase()}!`)
+      }
+
+      await fetchData()
+    } catch (error) {
+      console.error('Error updating quality:', error)
+      alert('Failed to update quality status')
+    }
+  }
+
   // Handle sending reworked batch to quality check
   const handleSendToQualityCheck = async (batchId: string) => {
     if (!confirm('Send this batch for quality check?')) {
@@ -117,31 +188,6 @@ const ProductionPage = () => {
     } catch (error) {
       console.error('Error sending to quality check:', error)
       alert('Failed to send to quality check')
-    }
-  }
-
-  // Handle quality check approval/rejection
-  const handleQualityCheck = async (batchId: string, qualityStatus: 'pass' | 'fail') => {
-    if (!confirm(`Mark this batch as ${qualityStatus.toUpperCase()}?`)) {
-      return
-    }
-
-    try {
-      const { error } = await supabase
-        .from('batches')
-        .update({ 
-          status: 'completed',
-          quality_status: qualityStatus
-        })
-        .eq('id', batchId)
-
-      if (error) throw error
-
-      await fetchData()
-      alert(`Batch marked as ${qualityStatus.toUpperCase()}!`)
-    } catch (error) {
-      console.error('Error updating quality:', error)
-      alert('Failed to update quality status')
     }
   }
 
