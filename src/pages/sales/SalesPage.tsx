@@ -60,7 +60,7 @@ const SalesPage = () => {
   const [status, setStatus] = useState('pending')
   const [driverName, setDriverName] = useState('')
   const [vehiclePlateNo, setVehiclePlateNo] = useState('')
-  const [quantityUnit, setQuantityUnit] = useState('Boxes')
+  const [quantityUnit, setQuantityUnit] = useState('Boxes') // Default unit
   const [stockError, setStockError] = useState('')
 
   useEffect(() => {
@@ -75,12 +75,12 @@ const SalesPage = () => {
         .select('*')
         .order('name')
 
-      // ✅ Fetch only finished goods from inventory
+      // ✅ FIX: Fetch ALL inventory items with stock > 0 (removed strict category filter)
       const { data: inventoryData } = await supabase
         .from('inventory')
         .select('item_name, quantity, unit, category')
-        .eq('category', 'finished_good')
-        .gt('quantity', 0)
+        .gt('quantity', 0) 
+        .order('item_name', { ascending: true })
 
       if (ordersData) setOrders(ordersData)
       if (customersData) setCustomers(customersData)
@@ -99,16 +99,21 @@ const SalesPage = () => {
         return
       }
 
-      const item = inventory.find(i => i.item_name.toLowerCase() === product.toLowerCase())
+      // Find item case-insensitive
+      const item = inventory.find(i => 
+        i.item_name.toLowerCase() === product.toLowerCase()
+      )
       
       if (!item) {
-        setStockError('Product not found in finished goods inventory')
+        setStockError('Product not found in inventory. Please check spelling.')
       } else {
         const qty = parseFloat(quantity)
         if (!isNaN(qty) && qty > item.quantity) {
           setStockError(`Insufficient stock! Only ${item.quantity} ${item.unit} available.`)
         } else {
           setStockError('')
+          // Auto-fill unit if found
+          if (item.unit) setQuantityUnit(item.unit)
         }
       }
     }
@@ -236,7 +241,6 @@ const SalesPage = () => {
     setIsCreating(true)
   }
 
-  // ✅ Invoice Download Function
   const downloadInvoice = (order: SalesOrder) => {
     const taxRate = 0.15
     const subtotal = order.total_amount
@@ -289,7 +293,6 @@ const SalesPage = () => {
     document.body.removeChild(link)
   }
 
-  // ✅ Gate Pass Print Function
   const handleGenerateGatePass = (order: SalesOrder) => {
     const printWindow = window.open('', '_blank')
     if (!printWindow) {
@@ -495,15 +498,15 @@ const SalesPage = () => {
               type="text" 
               value={product} 
               onChange={(e) => setProduct(e.target.value)} 
-              placeholder="Type to search finished products..." 
+              placeholder="Type product name (e.g., Short-cut Pasta)..." 
               className="w-full px-4 py-2.5 border border-gray-300 rounded-lg" 
               required 
               aria-required="true"
             />
-            {/* ✅ Show available finished goods */}
+            {/* Show available stock info */}
             {product && inventory.length > 0 && (
               <div className="mt-2 p-2 bg-blue-50 border border-blue-200 rounded text-xs">
-                <p className="font-medium text-blue-900">Available Finished Goods:</p>
+                <p className="font-medium text-blue-900">Available in Warehouse:</p>
                 <ul className="mt-1 space-y-1">
                   {inventory.map((item, idx) => (
                     <li key={idx} className="text-blue-700">
@@ -514,7 +517,7 @@ const SalesPage = () => {
               </div>
             )}
             {stockError && (
-              <p className={`text-xs mt-1 font-medium ${stockError.includes('Insufficient') ? 'text-red-600' : 'text-orange-600'}`}>
+              <p className="text-xs mt-1 font-medium text-red-600">
                 {stockError}
               </p>
             )}
@@ -536,14 +539,22 @@ const SalesPage = () => {
               />
             </div>
             <div>
+              {/* ✅ CHANGED: Unit is now a Dropdown Select */}
               <label htmlFor="unit" className="block mb-1.5 text-sm font-medium text-gray-700">Unit</label>
-              <input 
+              <select 
                 id="unit"
-                type="text" 
                 value={quantityUnit} 
                 onChange={(e) => setQuantityUnit(e.target.value)} 
-                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg" 
-              />
+                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="Boxes">Boxes</option>
+                <option value="Packs">Packs</option>
+                <option value="Bags">Bags</option>
+                <option value="Cartons">Cartons</option>
+                <option value="Sacks">Sacks</option>
+                <option value="Pieces">Pieces</option>
+                <option value="Kilograms">Kilograms (kg)</option>
+              </select>
             </div>
           </div>
 
@@ -667,7 +678,7 @@ const SalesPage = () => {
         <div className="p-6 bg-white border border-gray-200 rounded-xl">
           <p className="text-sm text-gray-500">Total Orders</p>
           <p className="text-2xl font-bold text-gray-900">{orders.length}</p>
-          <p className="text-xs text-green-600">↗ +15.3%</p>
+          <p className="text-xs text-green-600"> +15.3%</p>
         </div>
         <div className="p-6 bg-white border border-gray-200 rounded-xl">
           <p className="text-sm text-gray-500">Total Revenue</p>
@@ -764,7 +775,6 @@ const SalesPage = () => {
                             )}
                           </>
                         )}
-                        {/* ✅ Invoice Button for Completed Orders */}
                         {order.status === 'completed' && (
                           <button 
                             onClick={() => downloadInvoice(order)} 
@@ -775,7 +785,6 @@ const SalesPage = () => {
                             <FileText className="w-4 h-4" aria-hidden="true" />
                           </button>
                         )}
-                        {/* ✅ Gate Pass Button for Completed Orders */}
                         {order.status === 'completed' && (
                           <button 
                             onClick={() => handleGenerateGatePass(order)} 
