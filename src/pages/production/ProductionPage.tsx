@@ -6,6 +6,7 @@ import { Activity, CheckCircle, TrendingUp, Zap, Package, Plus, Send, RefreshCw,
 import AddBatchModal from '../../components/AddBatchModal'
 import AddProductionLineModal from '../../components/AddProductionLineModal'
 import RequestMaterialModal from '../../components/RequestMaterialModal'
+import RequestApprovalModal from '../../components/RequestApprovalModal'
 
 interface ProductionLine {
   id: string
@@ -52,6 +53,7 @@ const ProductionPage = () => {
   const [isBatchModalOpen, setIsBatchModalOpen] = useState(false)
   const [isLineModalOpen, setIsLineModalOpen] = useState(false)
   const [isRequestModalOpen, setIsRequestModalOpen] = useState(false)
+  const [isApprovalModalOpen, setIsApprovalModalOpen] = useState(false)
 
   const fetchData = useCallback(async () => {
     try {
@@ -95,14 +97,12 @@ const ProductionPage = () => {
     fetchData()
   }, [fetchData])
 
-  // ✅ UPDATED: Create transfer request instead of auto-adding to warehouse
   const handleQualityCheck = async (batchId: string, qualityStatus: 'pass' | 'fail') => {
     if (!confirm(`Mark this batch as ${qualityStatus.toUpperCase()}?`)) {
       return
     }
 
     try {
-      // Get batch details first
       const { data: batchData } = await supabase
         .from('batches')
         .select('*')
@@ -111,7 +111,6 @@ const ProductionPage = () => {
 
       if (!batchData) throw new Error('Batch not found')
 
-      // Update batch status
       const { error: batchError } = await supabase
         .from('batches')
         .update({ 
@@ -122,7 +121,6 @@ const ProductionPage = () => {
 
       if (batchError) throw batchError
 
-      // ✅ If quality passed, create transfer request to warehouse
       if (qualityStatus === 'pass' && batchData.quantity > 0) {
         const { error: transferError } = await supabase
           .from('transfer_requests')
@@ -148,7 +146,6 @@ const ProductionPage = () => {
     }
   }
 
-  // Handle sending reworked batch to quality check
   const handleSendToQualityCheck = async (batchId: string) => {
     if (!confirm('Send this batch for quality check?')) {
       return
@@ -173,7 +170,6 @@ const ProductionPage = () => {
     }
   }
 
-  // Handle Batch Disposition
   const handleBatchDisposition = async (batchId: string, disposition: 'rework' | 'scrap' | 'downgrade') => {
     if (!confirm(`Are you sure you want to mark this batch as ${disposition.toUpperCase()}?`)) {
       return
@@ -306,6 +302,12 @@ const ProductionPage = () => {
           {canModifyProduction && (
             <div className="flex gap-2">
               <button 
+                onClick={() => setIsApprovalModalOpen(true)}
+                className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700"
+              >
+                Request Executive Approval
+              </button>
+              <button 
                 onClick={() => setIsRequestModalOpen(true)}
                 aria-label="Request materials for production"
                 className="flex items-center px-3 py-1.5 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 transition"
@@ -437,7 +439,6 @@ const ProductionPage = () => {
                       </td>
                       {canModifyProduction && (
                         <td className="px-6 py-4">
-                          {/* 1. Initial Quality Check (Completed but Pending Quality) */}
                           {batch.status === 'completed' && batch.quality_status === 'pending' && !batch.disposition && (
                             <div className="flex gap-1">
                               <button
@@ -457,7 +458,6 @@ const ProductionPage = () => {
                             </div>
                           )}
 
-                          {/* 2. Failed Batch - Needs Disposition (Rework/Scrap/Downgrade) */}
                           {batch.status === 'completed' && batch.quality_status === 'fail' && !batch.disposition && (
                             <div className="flex gap-1">
                               <button
@@ -487,7 +487,6 @@ const ProductionPage = () => {
                             </div>
                           )}
 
-                          {/* 3. Rework in Progress - Send to QC */}
                           {batch.disposition === 'rework' && batch.status === 'in_progress' && (
                             <button
                               onClick={() => handleSendToQualityCheck(batch.id)}
@@ -498,7 +497,6 @@ const ProductionPage = () => {
                             </button>
                           )}
 
-                          {/* 4. Reworked Batch in Quality Check - Pass/Fail again */}
                           {batch.disposition === 'rework' && batch.status === 'quality_check' && (
                             <div className="flex gap-1">
                               <button
@@ -518,7 +516,6 @@ const ProductionPage = () => {
                             </div>
                           )}
 
-                          {/* 5. Finalized Dispositions (Scrap or Downgrade) */}
                           {(batch.disposition === 'scrap' || batch.disposition === 'downgrade') && (
                             <span className="text-xs text-gray-400">Processed</span>
                           )}
@@ -571,7 +568,6 @@ const ProductionPage = () => {
         </div>
       </div>
 
-      {/* Material Requests Section */}
       <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
         <div className="p-4 border-b border-gray-200">
           <h2 className="text-lg font-semibold text-gray-900">My Material Requests</h2>
@@ -632,6 +628,11 @@ const ProductionPage = () => {
         isOpen={isRequestModalOpen}
         onClose={() => setIsRequestModalOpen(false)}
         onRequestAdded={fetchData}
+      />
+      <RequestApprovalModal
+        isOpen={isApprovalModalOpen}
+        onClose={() => setIsApprovalModalOpen(false)}
+        onSuccess={() => console.log('Request sent')}
       />
     </div>
   )

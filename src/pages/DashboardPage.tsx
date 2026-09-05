@@ -6,6 +6,7 @@ import {
   Package, Factory, ShoppingCart, 
   TrendingUp, AlertTriangle
 } from 'lucide-react'
+import PendingApprovalsTab from '../components/PendingApprovalsTab'
 
 interface DashboardStats {
   totalRevenue: number
@@ -20,6 +21,7 @@ interface DashboardStats {
 
 const DashboardPage = () => {
   const navigate = useNavigate()
+  const [activeTab, setActiveTab] = useState<'overview' | 'approvals'>('overview')
   const [stats, setStats] = useState<DashboardStats>({
     totalRevenue: 0,
     totalExpenses: 0,
@@ -128,75 +130,98 @@ const DashboardPage = () => {
         <p className="mt-1 text-sm text-gray-500">High-level overview of YIZUTA Food Complex operations</p>
       </div>
 
-      {loading ? (
-        <div className="p-12 text-center text-gray-500" role="status" aria-label="Loading dashboard data">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4" aria-hidden="true"></div>
-          Loading company data...
-        </div>
-      ) : (
+      <div className="flex gap-4 mb-6 border-b">
+        <button 
+          onClick={() => setActiveTab('overview')}
+          className={`pb-2 px-4 ${activeTab === 'overview' ? 'border-b-2 border-blue-600 font-bold' : ''}`}
+        >
+          Dashboard Overview
+        </button>
+        <button 
+          onClick={() => setActiveTab('approvals')}
+          className={`pb-2 px-4 ${activeTab === 'approvals' ? 'border-b-2 border-blue-600 font-bold' : ''}`}
+        >
+          Pending Approvals
+        </button>
+      </div>
+
+      {activeTab === 'overview' && (
         <>
-          {/* Summary Cards - Only these 4 cards remain */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="p-6 bg-white border border-gray-200 rounded-xl">
-              <div className="flex items-center justify-between mb-2">
-                <p className="text-sm text-gray-500">Net Profit</p>
-                <TrendingUp className="w-5 h-5 text-green-600" aria-hidden="true" />
-              </div>
-              <p className="text-2xl font-bold text-gray-900">
-                {formatCurrency(stats.totalRevenue - stats.totalExpenses)}
-              </p>
-              <p className="text-xs text-green-600 mt-1">↗ +18.2% from last month</p>
+          {loading ? (
+            <div className="p-12 text-center text-gray-500" role="status" aria-label="Loading dashboard data">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4" aria-hidden="true"></div>
+              Loading company data...
             </div>
+          ) : (
+            <>
+              {/* Summary Cards */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="p-6 bg-white border border-gray-200 rounded-xl">
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-sm text-gray-500">Net Profit</p>
+                    <TrendingUp className="w-5 h-5 text-green-600" aria-hidden="true" />
+                  </div>
+                  <p className="text-2xl font-bold text-gray-900">
+                    {formatCurrency(stats.totalRevenue - stats.totalExpenses)}
+                  </p>
+                  <p className="text-xs text-green-600 mt-1">↗ +18.2% from last month</p>
+                </div>
 
-            <div className="p-6 bg-white border border-gray-200 rounded-xl">
-              <div className="flex items-center justify-between mb-2">
-                <p className="text-sm text-gray-500">Production Status</p>
-                <Factory className="w-5 h-5 text-purple-600" aria-hidden="true" />
-              </div>
-              <p className="text-2xl font-bold text-gray-900">
-                {stats.activeProductionLines}/{stats.totalProductionLines}
-              </p>
-              <p className="text-xs text-gray-500 mt-1">Lines currently running</p>
-            </div>
+                <div className="p-6 bg-white border border-gray-200 rounded-xl">
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-sm text-gray-500">Production Status</p>
+                    <Factory className="w-5 h-5 text-purple-600" aria-hidden="true" />
+                  </div>
+                  <p className="text-2xl font-bold text-gray-900">
+                    {stats.activeProductionLines}/{stats.totalProductionLines}
+                  </p>
+                  <p className="text-xs text-gray-500 mt-1">Lines currently running</p>
+                </div>
 
-            <div className="p-6 bg-white border border-gray-200 rounded-xl">
-              <div className="flex items-center justify-between mb-2">
-                <p className="text-sm text-gray-500">Inventory Health</p>
-                <Package className="w-5 h-5 text-blue-600" aria-hidden="true" />
-              </div>
-              <p className="text-2xl font-bold text-gray-900">{stats.totalInventoryItems}</p>
-              <p className={`text-xs mt-1 ${stats.lowStockItems > 0 ? 'text-red-600' : 'text-green-600'}`}>
-                {stats.lowStockItems > 0 ? `⚠ ${stats.lowStockItems} low stock items` : '✓ All items in stock'}
-              </p>
-            </div>
+                <div className="p-6 bg-white border border-gray-200 rounded-xl">
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-sm text-gray-500">Inventory Health</p>
+                    <Package className="w-5 h-5 text-blue-600" aria-hidden="true" />
+                  </div>
+                  <p className="text-2xl font-bold text-gray-900">{stats.totalInventoryItems}</p>
+                  <p className={`text-xs mt-1 ${stats.lowStockItems > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                    {stats.lowStockItems > 0 ? `⚠ ${stats.lowStockItems} low stock items` : '✓ All items in stock'}
+                  </p>
+                </div>
 
-            <div className="p-6 bg-white border border-gray-200 rounded-xl">
-              <div className="flex items-center justify-between mb-2">
-                <p className="text-sm text-gray-500">Sales Pipeline</p>
-                <ShoppingCart className="w-5 h-5 text-orange-600" aria-hidden="true" />
+                <div className="p-6 bg-white border border-gray-200 rounded-xl">
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-sm text-gray-500">Sales Pipeline</p>
+                    <ShoppingCart className="w-5 h-5 text-orange-600" aria-hidden="true" />
+                  </div>
+                  <p className="text-2xl font-bold text-gray-900">{stats.pendingSalesOrders}</p>
+                  <p className="text-xs text-gray-500 mt-1">Pending/Processing orders</p>
+                </div>
               </div>
-              <p className="text-2xl font-bold text-gray-900">{stats.pendingSalesOrders}</p>
-              <p className="text-xs text-gray-500 mt-1">Pending/Processing orders</p>
-            </div>
-          </div>
 
-          {/* Low Stock Alert Banner */}
-          {stats.lowStockItems > 0 && (
-            <div className="p-4 bg-red-50 border border-red-200 rounded-lg flex items-center" role="alert">
-              <AlertTriangle className="w-5 h-5 text-red-600 mr-3 flex-shrink-0" aria-hidden="true" />
-              <p className="text-sm font-medium text-red-800">
-                Attention Warehouse Team: {stats.lowStockItems} inventory item(s) have fallen below the reorder level.
-              </p>
-              <button 
-                onClick={() => navigate('/warehouse')}
-                aria-label="View inventory details"
-                className="ml-auto text-sm font-medium text-red-700 hover:text-red-900 underline"
-              >
-                View Inventory
-              </button>
-            </div>
+              {/* Low Stock Alert Banner */}
+              {stats.lowStockItems > 0 && (
+                <div className="p-4 bg-red-50 border border-red-200 rounded-lg flex items-center" role="alert">
+                  <AlertTriangle className="w-5 h-5 text-red-600 mr-3 flex-shrink-0" aria-hidden="true" />
+                  <p className="text-sm font-medium text-red-800">
+                    Attention Warehouse Team: {stats.lowStockItems} inventory item(s) have fallen below the reorder level.
+                  </p>
+                  <button 
+                    onClick={() => navigate('/warehouse')}
+                    aria-label="View inventory details"
+                    className="ml-auto text-sm font-medium text-red-700 hover:text-red-900 underline"
+                  >
+                    View Inventory
+                  </button>
+                </div>
+              )}
+            </>
           )}
         </>
+      )}
+
+      {activeTab === 'approvals' && (
+        <PendingApprovalsTab />
       )}
     </div>
   )
