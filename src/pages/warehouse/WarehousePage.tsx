@@ -17,6 +17,7 @@ interface InventoryItem {
   category: string | null
   status: string
   created_at: string
+  unit_cost?: number // ✅ Added for expense calculation
 }
 
 interface Shipment {
@@ -103,9 +104,20 @@ const WarehousePage = () => {
     }
   }, [])
 
+  // ✅ UPDATED: Auto-log expense when approving material requests
   const handleRequestAction = async (id: string, action: 'approved' | 'rejected') => {
     setReqLoading(true)
     try {
+      // Get the request details first
+      const { data: requestData } = await supabase
+        .from('material_requests')
+        .select('*')
+        .eq('id', id)
+        .single()
+
+      if (!requestData) throw new Error('Request not found')
+
+      // Update request status
       const { error } = await supabase
         .from('material_requests')
         .update({ status: action })
@@ -113,10 +125,39 @@ const WarehousePage = () => {
 
       if (error) throw error
       
+      // ✅ If approved, create expense record in Finance
+      if (action === 'approved' && requestData) {
+        // Find the inventory item to get unit cost
+        const inventoryItem = inventory.find(
+          item => item.item_name.toLowerCase() === requestData.material_name.toLowerCase()
+        )
+
+        const unitCost = inventoryItem?.unit_cost || 0
+        const totalCost = requestData.quantity * unitCost
+
+        // Create expense transaction
+        const { error: expenseError } = await supabase
+          .from('financial_transactions')
+          .insert({
+            transaction_type: 'expense',
+            category: 'production_materials',
+            amount: totalCost,
+            reference_id: requestData.id,
+            transaction_date: new Date().toISOString(),
+            description: `Raw materials for production: ${requestData.material_name} (${requestData.quantity} ${requestData.unit})`
+          })
+
+        if (expenseError) {
+          console.error('Error creating expense:', expenseError)
+          // Don't throw - allow approval to succeed even if expense logging fails
+        }
+      }
+      
       await fetchPendingRequests()
       alert(`Request ${action} successfully!`)
     } catch (error) {
       console.error('Error updating request:', error)
+      alert('Error updating request: ' + (error as Error).message)
     } finally {
       setReqLoading(false)
     }

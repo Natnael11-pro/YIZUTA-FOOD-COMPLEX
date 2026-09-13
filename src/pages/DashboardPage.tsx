@@ -21,7 +21,7 @@ interface DashboardStats {
 
 const DashboardPage = () => {
   const navigate = useNavigate()
-  const [activeTab, setActiveTab] = useState<'overview' | 'approvals'>('overview')
+  const [activeTab, setActiveTab] = useState<'overview' | 'approvals'>('approvals')
   const [stats, setStats] = useState<DashboardStats>({
     totalRevenue: 0,
     totalExpenses: 0,
@@ -39,57 +39,63 @@ const DashboardPage = () => {
     console.log('📊 Dashboard: Fetching stats...')
     setError(null)
     try {
-      // 1. Finance Stats
-      console.log('Fetching transactions...')
-      const { data: transactions, error: transError } = await supabase.from('transactions').select('type, amount, status')
-      if (transError) console.error('Transactions error:', transError)
-      const revenue = transactions?.filter(t => t.type === 'income' && t.status === 'completed').reduce((sum, t) => sum + Number(t.amount), 0) || 0
-      const expenses = transactions?.filter(t => t.type === 'expense' && t.status === 'completed').reduce((sum, t) => sum + Number(t.amount), 0) || 0
-      console.log('Revenue:', revenue, 'Expenses:', expenses)
-
-      // 2. Production Stats
-      console.log('Fetching production lines...')
-      const { data: lines, error: linesError } = await supabase.from('production_lines').select('status')
-      if (linesError) console.error('Production lines error:', linesError)
-      const activeLines = lines?.filter(l => l.status === 'running').length || 0
-      const totalLines = lines?.length || 0
-      console.log('Active lines:', activeLines, 'Total:', totalLines)
-
-      // 3. Warehouse Stats
-      console.log('Fetching inventory...')
-      const { data: inventory, error: invError } = await supabase.from('inventory').select('quantity, reorder_level')
-      if (invError) console.error('Inventory error:', invError)
-      const totalItems = inventory?.length || 0
-      const lowStock = inventory?.filter(i => i.quantity <= i.reorder_level).length || 0
-      console.log('Total items:', totalItems, 'Low stock:', lowStock)
-
-      // 4. Sales Stats
-      console.log('Fetching customers...')
-      const { data: customers, error: custError } = await supabase.from('customers').select('id')
-      if (custError) console.error('Customers error:', custError)
-      const totalCustomers = customers?.length || 0
+      // ✅ DEBUG: Fetch ALL data from financial_transactions to see what we get
+      console.log('Fetching financial_transactions...')
+      const { data: allTrans, error: allTransError } = await supabase
+        .from('financial_transactions')
+        .select('*')
       
-      console.log('Fetching orders...')
-      const { data: orders, error: ordersError } = await supabase.from('sales_orders').select('status')
-      if (ordersError) console.error('Orders error:', ordersError)
-      const pendingOrders = orders?.filter(o => o.status === 'pending' || o.status === 'processing').length || 0
-      console.log('Pending orders:', pendingOrders)
+      if (allTransError) {
+        console.error('❌ Error fetching transactions:', allTransError)
+      } else {
+        console.log('✅ Raw transactions data:', allTrans)
+        console.log('✅ Total transactions found:', allTrans?.length)
+        
+        // Calculate revenue and expenses
+        const revenue = allTrans
+          ?.filter(t => t.transaction_type === 'revenue')
+          .reduce((sum, t) => sum + Number(t.amount), 0) || 0
+        
+        const expenses = allTrans
+          ?.filter(t => t.transaction_type === 'expense')
+          .reduce((sum, t) => sum + Number(t.amount), 0) || 0
+        
+        console.log('✅ Calculated Revenue:', revenue)
+        console.log('✅ Calculated Expenses:', expenses)
+        console.log('✅ Net Profit:', revenue - expenses)
 
-      setStats({
-        totalRevenue: revenue,
-        totalExpenses: expenses,
-        activeProductionLines: activeLines,
-        totalProductionLines: totalLines,
-        totalInventoryItems: totalItems,
-        lowStockItems: lowStock,
-        totalCustomers: totalCustomers,
-        pendingSalesOrders: pendingOrders
-      })
+        // 2. Production Stats
+        const { data: lines } = await supabase.from('production_lines').select('status')
+        const activeLines = lines?.filter(l => l.status === 'running').length || 0
+        const totalLines = lines?.length || 0
+
+        // 3. Warehouse Stats
+        const { data: inventory } = await supabase.from('inventory').select('quantity, reorder_level')
+        const totalItems = inventory?.length || 0
+        const lowStock = inventory?.filter(i => i.quantity <= i.reorder_level).length || 0
+
+        // 4. Sales Stats
+        const { data: customers } = await supabase.from('customers').select('id')
+        const totalCustomers = customers?.length || 0
+        
+        const { data: orders } = await supabase.from('sales_orders').select('status')
+        const pendingOrders = orders?.filter(o => o.status === 'pending' || o.status === 'processing').length || 0
+
+        setStats({
+          totalRevenue: revenue,
+          totalExpenses: expenses,
+          activeProductionLines: activeLines,
+          totalProductionLines: totalLines,
+          totalInventoryItems: totalItems,
+          lowStockItems: lowStock,
+          totalCustomers: totalCustomers,
+          pendingSalesOrders: pendingOrders
+        })
+      }
     } catch (error) {
-      console.error(' Error fetching dashboard stats:', error)
-      setError('Failed to load dashboard data')
+      console.error('❌ Error fetching dashboard stats:', error)
+      setError('Failed to load dashboard data: ' + (error as Error).message)
     } finally {
-      console.log('Dashboard: Loading complete')
       setLoading(false)
     }
   }
@@ -161,10 +167,10 @@ const DashboardPage = () => {
                     <p className="text-sm text-gray-500">Net Profit</p>
                     <TrendingUp className="w-5 h-5 text-green-600" aria-hidden="true" />
                   </div>
-                  <p className="text-2xl font-bold text-gray-900">
+                  <p className={`text-2xl font-bold ${stats.totalRevenue - stats.totalExpenses >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                     {formatCurrency(stats.totalRevenue - stats.totalExpenses)}
                   </p>
-                  <p className="text-xs text-green-600 mt-1">↗ +18.2% from last month</p>
+                  <p className="text-xs text-gray-500 mt-1">Real-time from Finance</p>
                 </div>
 
                 <div className="p-6 bg-white border border-gray-200 rounded-xl">

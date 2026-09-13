@@ -41,7 +41,6 @@ interface InventoryItem {
 const SalesPage = () => {
   const { userRole } = useAuth()
   
-  // ✅ UPDATED: Admin is now View-Only. Only 'sales' role can modify orders.
   const canModifyOrders = userRole === 'sales'
 
   const [orders, setOrders] = useState<SalesOrder[]>([])
@@ -77,7 +76,6 @@ const SalesPage = () => {
         .select('*')
         .order('name')
 
-      // Fetch all inventory items with stock > 0
       const { data: inventoryData } = await supabase
         .from('inventory')
         .select('item_name, quantity, unit, category')
@@ -124,6 +122,27 @@ const SalesPage = () => {
     return () => clearTimeout(timer)
   }, [product, quantity, inventory])
 
+  // ✅ NEW FUNCTION: Generate professional order number
+  const generateOrderNumber = async () => {
+    const today = new Date()
+    const year = today.getFullYear()
+    const month = String(today.getMonth() + 1).padStart(2, '0')
+    const day = String(today.getDate()).padStart(2, '0')
+    
+    // Get the count of orders today to create sequential number
+    const { data: todayOrders } = await supabase
+      .from('sales_orders')
+      .select('order_number')
+      .gte('order_date', `${year}-${month}-${day}`)
+      .lt('order_date', `${year}-${month}-${day}T23:59:59.999Z`)
+    
+    const orderCount = (todayOrders?.length || 0) + 1
+    const sequentialNum = String(orderCount).padStart(4, '0')
+    
+    // Format: ORD-2026-09-13-0001
+    return `ORD-${year}-${month}-${day}-${sequentialNum}`
+  }
+
   const resetForm = () => {
     setCustomerId('')
     setProduct('')
@@ -151,8 +170,12 @@ const SalesPage = () => {
     }
 
     const totalAmount = parseFloat(quantity) * parseFloat(unitPrice)
+    
+    // ✅ Generate professional order number
+    const orderNumber = await generateOrderNumber()
 
     const { error } = await supabase.from('sales_orders').insert({
+      order_number: orderNumber, // ✅ Use generated order number
       customer_id: customerId,
       product,
       quantity: parseFloat(quantity),
@@ -168,7 +191,7 @@ const SalesPage = () => {
     if (error) {
       alert('Error creating order: ' + error.message)
     } else {
-      alert('Order created successfully!')
+      alert(`Order ${orderNumber} created successfully!`)
       resetForm()
       const { data: ordersData } = await supabase
         .from('sales_orders')
@@ -655,7 +678,6 @@ const SalesPage = () => {
           <h1 className="text-3xl font-bold text-gray-900">Sales Management</h1>
           <p className="text-sm text-gray-500">Customer management and sales orders</p>
         </div>
-        {/* ✅ Admin will NOT see this button anymore */}
         {canModifyOrders && (
           <button 
             onClick={() => setIsCreating(true)} 
@@ -736,7 +758,6 @@ const SalesPage = () => {
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex items-center space-x-2">
-                        {/* ✅ Admin will NOT see Edit/Delete buttons anymore */}
                         {canModifyOrders && (
                           <>
                             <button 
@@ -807,7 +828,6 @@ const SalesPage = () => {
         <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
           <div className="p-4 border-b border-gray-200 flex items-center justify-between">
             <h2 className="text-lg font-semibold text-gray-900">Top Customers</h2>
-            {/* ✅ Admin will NOT see Add Customer button anymore */}
             {canModifyOrders && (
               <button 
                 onClick={() => setIsCustomerModalOpen(true)}

@@ -16,6 +16,7 @@ const AddInventoryModal = ({ isOpen, onClose, onItemAdded }: AddInventoryModalPr
   const [unit, setUnit] = useState('units')
   const [category, setCategory] = useState('')
   const [status, setStatus] = useState('in_stock')
+  const [unitCost, setUnitCost] = useState('') // ✅ NEW: Unit cost state
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
@@ -36,7 +37,8 @@ const AddInventoryModal = ({ isOpen, onClose, onItemAdded }: AddInventoryModalPr
           reorder_level: parseInt(reorderLevel),
           unit: unit,
           category: category || null,
-          status: status
+          status: status,
+          unit_cost: parseFloat(unitCost) || 0 // ✅ NEW: Insert unit cost into database
         })
 
       if (error) throw error
@@ -45,11 +47,13 @@ const AddInventoryModal = ({ isOpen, onClose, onItemAdded }: AddInventoryModalPr
       onItemAdded()
       onClose()
       
+      // Reset form
       setItemName('')
       setSku('')
       setQuantity('')
       setReorderLevel('')
       setCategory('')
+      setUnitCost('') // ✅ NEW: Reset unit cost
       
     } catch (err: unknown) {
       console.error('Error adding item:', err)
@@ -61,7 +65,6 @@ const AddInventoryModal = ({ isOpen, onClose, onItemAdded }: AddInventoryModalPr
   }
 
   return (
-    // ✅ ACCESSIBILITY: Added role, aria-modal, and aria-labelledby for modal semantics
     <div 
       className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"
       role="dialog"
@@ -90,7 +93,7 @@ const AddInventoryModal = ({ isOpen, onClose, onItemAdded }: AddInventoryModalPr
               type="text"
               value={itemName}
               onChange={(e) => setItemName(e.target.value)}
-              placeholder="e.g., Orange Juice 1L"
+              placeholder="e.g., Wheat"
               className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               required
               aria-required="true"
@@ -104,7 +107,7 @@ const AddInventoryModal = ({ isOpen, onClose, onItemAdded }: AddInventoryModalPr
               type="text"
               value={sku}
               onChange={(e) => setSku(e.target.value)}
-              placeholder="e.g., OJ-001"
+              placeholder="e.g., WH-001"
               className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               required
               aria-required="true"
@@ -138,6 +141,23 @@ const AddInventoryModal = ({ isOpen, onClose, onItemAdded }: AddInventoryModalPr
                 aria-required="true"
               />
             </div>
+          </div>
+
+          {/* ✅ NEW: Unit Cost Input Field */}
+          <div>
+            <label htmlFor="unit-cost" className="block mb-1.5 text-sm font-medium text-gray-700">Unit Cost (ETB)</label>
+            <input
+              id="unit-cost"
+              type="number"
+              step="0.01"
+              value={unitCost}
+              onChange={(e) => setUnitCost(e.target.value)}
+              placeholder="e.g., 10.00"
+              className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              required
+              aria-required="true"
+            />
+            <p className="text-xs text-gray-500 mt-1">Cost per single unit (e.g., per kg, per box)</p>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
@@ -178,7 +198,7 @@ const AddInventoryModal = ({ isOpen, onClose, onItemAdded }: AddInventoryModalPr
               type="text"
               value={category}
               onChange={(e) => setCategory(e.target.value)}
-              placeholder="e.g., Beverages, Dairy"
+              placeholder="e.g., Raw Materials, Finished Goods"
               className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>

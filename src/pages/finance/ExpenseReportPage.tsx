@@ -1,17 +1,19 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../../config/supabase'
-import { Download, Filter, TrendingUp, TrendingDown } from 'lucide-react'
+import { Download, Filter, TrendingUp, TrendingDown, FileDown } from 'lucide-react'
 import * as XLSX from 'xlsx'
 
+// ✅ UPDATED: Interface to match financial_transactions table structure
 interface Transaction {
   id: string
-  type: 'income' | 'expense'
+  transaction_type: 'revenue' | 'expense'
+  category: string
   description: string
   amount: number
-  date: string
-  category: string | null
+  transaction_date: string
   status: string
   created_at: string
+  reference_id?: string
 }
 
 const ExpenseReportPage = () => {
@@ -23,11 +25,12 @@ const ExpenseReportPage = () => {
   useEffect(() => {
     let isMounted = true
     
+    // ✅ UPDATED: Fetch from 'financial_transactions' table instead of 'transactions'
     const fetchTransactions = async () => {
       const { data } = await supabase
-        .from('transactions')
+        .from('financial_transactions')
         .select('*')
-        .order('created_at', { ascending: false })
+        .order('transaction_date', { ascending: false })
       
       if (isMounted && data) {
         setTransactions(data)
@@ -42,18 +45,20 @@ const ExpenseReportPage = () => {
     }
   }, [])
 
+  // ✅ UPDATED: Removed status filter to match FinancePage calculations
   const totalIncome = transactions
-    .filter((t: Transaction) => t.type === 'income' && t.status === 'completed')
+    .filter((t: Transaction) => t.transaction_type === 'revenue')
     .reduce((sum: number, t: Transaction) => sum + Number(t.amount), 0)
 
   const totalExpenses = transactions
-    .filter((t: Transaction) => t.type === 'expense' && t.status === 'completed')
+    .filter((t: Transaction) => t.transaction_type === 'expense')
     .reduce((sum: number, t: Transaction) => sum + Number(t.amount), 0)
 
   const netProfit = totalIncome - totalExpenses
 
+  // ✅ UPDATED: Filter logic uses transaction_type
   const filteredTransactions = transactions.filter((t: Transaction) => {
-    const typeMatch = filterType === 'all' || t.type === filterType
+    const typeMatch = filterType === 'all' || t.transaction_type === filterType
     const categoryMatch = filterCategory === 'all' || t.category === filterCategory
     return typeMatch && categoryMatch
   })
@@ -64,14 +69,44 @@ const ExpenseReportPage = () => {
     return new Intl.NumberFormat('en-ET', { style: 'currency', currency: 'ETB' }).format(amount)
   }
 
+  // ✅ NEW: Download individual transaction as CSV
+  const downloadTransaction = (transaction: Transaction) => {
+    const csvContent = [
+      ['TRANSACTION DETAILS'],
+      [''],
+      ['YIZUTA Food Complex'],
+      ['Dire Dawa, Ethiopia'],
+      [''],
+      ['Transaction ID:', transaction.id],
+      ['Type:', transaction.transaction_type.toUpperCase()],
+      ['Category:', transaction.category],
+      ['Description:', transaction.description],
+      ['Amount:', formatCurrency(Number(transaction.amount))],
+      ['Date:', new Date(transaction.transaction_date).toLocaleDateString()],
+      ['Status:', transaction.status],
+      [''],
+      ['This is a computer-generated transaction record.']
+    ].map(row => row.join(',')).join('\n')
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+    const link = document.createElement('a')
+    const url = URL.createObjectURL(blob)
+    link.setAttribute('href', url)
+    link.setAttribute('download', `Transaction_${transaction.id}_${new Date(transaction.transaction_date).toISOString().split('T')[0]}.csv`)
+    link.style.visibility = 'hidden'
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+  }
+
   // ✅ PROFESSIONAL "DAILY SNAPSHOT" DOWNLOAD FUNCTION
   const downloadAllReports = async () => {
     try {
-      // 1. Fetch ALL historical data from the database (No date filtering)
+      // ✅ UPDATED: Query 'financial_transactions' instead of 'transactions'
       const { data: transactionsData } = await supabase
-        .from('transactions')
+        .from('financial_transactions')
         .select('*')
-        .order('created_at', { ascending: false })
+        .order('transaction_date', { ascending: false })
 
       const { data: salesOrdersData } = await supabase
         .from('sales_orders')
@@ -104,7 +139,7 @@ const ExpenseReportPage = () => {
         XLSX.utils.book_append_sheet(wb, inventoryWS, 'Inventory Stock')
       }
 
-      // 6. Generate filename with current Date and Time (Replaces colons with dashes for Windows compatibility)
+      // 6. Generate filename with current Date and Time
       const today = new Date().toISOString().split('T')[0]
       const time = new Date().toISOString().slice(11, 19).replace(/:/g, '-')
       const fileName = `YIZUTA_Full_Snapshot_${today}_${time}.xlsx`
@@ -186,7 +221,7 @@ const ExpenseReportPage = () => {
           className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
         >
           <option value="all">All Transactions</option>
-          <option value="income">Income Only</option>
+          <option value="revenue">Revenue Only</option>
           <option value="expense">Expenses Only</option>
         </select>
 
@@ -215,35 +250,48 @@ const ExpenseReportPage = () => {
               <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Category</th>
               <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Amount</th>
               <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-200">
             {loading ? (
-              <tr><td colSpan={6} className="px-6 py-8 text-center text-gray-500">Loading...</td></tr>
+              <tr><td colSpan={7} className="px-6 py-8 text-center text-gray-500">Loading...</td></tr>
             ) : filteredTransactions.length === 0 ? (
-              <tr><td colSpan={6} className="px-6 py-8 text-center text-gray-500">No transactions found</td></tr>
+              <tr><td colSpan={7} className="px-6 py-8 text-center text-gray-500">No transactions found</td></tr>
             ) : (
               filteredTransactions.map((t: Transaction) => (
                 <tr key={t.id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 text-sm text-gray-500">{t.date}</td>
+                  <td className="px-6 py-4 text-sm text-gray-500">
+                    {new Date(t.transaction_date).toLocaleDateString()}
+                  </td>
                   <td className="px-6 py-4">
                     <span className={`inline-flex px-2.5 py-1 text-xs font-medium rounded-full ${
-                      t.type === 'income' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+                      t.transaction_type === 'revenue' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
                     }`}>
-                      {t.type === 'income' ? 'Income' : 'Expense'}
+                      {t.transaction_type === 'revenue' ? 'Revenue' : 'Expense'}
                     </span>
                   </td>
                   <td className="px-6 py-4 text-sm font-medium text-gray-900">{t.description}</td>
                   <td className="px-6 py-4 text-sm text-gray-600">{t.category || 'Uncategorized'}</td>
                   <td className={`px-6 py-4 text-sm font-bold ${
-                    t.type === 'income' ? 'text-green-600' : 'text-red-600'
+                    t.transaction_type === 'revenue' ? 'text-green-600' : 'text-red-600'
                   }`}>
-                    {t.type === 'income' ? '+' : '-'}{formatCurrency(Number(t.amount))}
+                    {t.transaction_type === 'revenue' ? '+' : '-'}{formatCurrency(Number(t.amount))}
                   </td>
                   <td className="px-6 py-4">
                     <span className={`px-2.5 py-1 text-xs font-medium rounded-full ${
                       t.status === 'completed' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'
                     }`}>{t.status}</span>
+                  </td>
+                  <td className="px-6 py-4">
+                    <button 
+                      onClick={() => downloadTransaction(t)}
+                      aria-label={`Download transaction ${t.id}`}
+                      className="p-1.5 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition" 
+                      title="Download Transaction"
+                    >
+                      <FileDown className="w-4 h-4" aria-hidden="true" />
+                    </button>
                   </td>
                 </tr>
               ))
