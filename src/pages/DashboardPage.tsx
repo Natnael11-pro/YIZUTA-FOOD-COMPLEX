@@ -349,7 +349,7 @@ const DashboardPage = () => {
                         fill="#8884d8"
                         dataKey="value"
                       >
-                        {inventoryCategoryData.map((entry, index) => (
+                        {inventoryCategoryData.map((_, index) => (
                           <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                         ))}
                       </Pie>
