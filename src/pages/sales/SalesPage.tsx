@@ -1,8 +1,11 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../../config/supabase'
 import { useAuth } from '../../context/AuthContext'
-import { Plus, Edit2, Trash2, FileText, UserPlus, Printer } from 'lucide-react'
+// ✅ ADDITION 1: Added 'DollarSign' to imports
+import { Plus, Edit2, Trash2, FileText, UserPlus, Printer, DollarSign } from 'lucide-react'
 import AddCustomerModal from '../../components/AddCustomerModal'
+// ✅ ADDITION 1: Added PaymentReceiptModal import
+import PaymentReceiptModal from '../../components/PaymentReceiptModal'
 
 interface Customer {
   id: string
@@ -24,6 +27,7 @@ interface SalesOrder {
   driver_name: string | null
   vehicle_plate_no: string | null
   quantity_unit: string | null
+  payment_status?: string // ✅ ADDITION 2: Added for payment tracking
   customers?: {
     name: string
     company: string | null
@@ -51,6 +55,10 @@ const SalesPage = () => {
   const [isCustomerModalOpen, setIsCustomerModalOpen] = useState(false)
   const [editingOrder, setEditingOrder] = useState<SalesOrder | null>(null)
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null)
+  
+  // ✅ ADDITION 3: Added Modal States
+  const [paymentModalOpen, setPaymentModalOpen] = useState(false)
+  const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null)
 
   // Form state
   const [customerId, setCustomerId] = useState('')
@@ -261,6 +269,12 @@ const SalesPage = () => {
     setVehiclePlateNo(order.vehicle_plate_no || '')
     setQuantityUnit(order.quantity_unit || 'Boxes')
     setIsCreating(true)
+  }
+
+  // ✅ ADDITION 3: Added Handler Function for Payment Modal
+  const handleRecordPayment = (orderId: string) => {
+    setSelectedOrderId(orderId)
+    setPaymentModalOpen(true)
   }
 
   const downloadInvoice = (order: SalesOrder) => {
@@ -796,24 +810,35 @@ const SalesPage = () => {
                           </>
                         )}
                         {order.status === 'completed' && (
-                          <button 
-                            onClick={() => downloadInvoice(order)} 
-                            aria-label={`Download invoice for order ${order.order_number}`}
-                            className="p-1.5 text-gray-500 hover:text-green-600 hover:bg-green-50 rounded-lg transition" 
-                            title="Download Invoice"
-                          >
-                            <FileText className="w-4 h-4" aria-hidden="true" />
-                          </button>
-                        )}
-                        {order.status === 'completed' && (
-                          <button 
-                            onClick={() => handleGenerateGatePass(order)} 
-                            aria-label={`Print gate pass for order ${order.order_number}`}
-                            className="p-1.5 text-gray-500 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition" 
-                            title="Print Gate Pass"
-                          >
-                            <Printer className="w-4 h-4" aria-hidden="true" />
-                          </button>
+                          <>
+                            <button 
+                              onClick={() => downloadInvoice(order)} 
+                              aria-label={`Download invoice for order ${order.order_number}`}
+                              className="p-1.5 text-gray-500 hover:text-green-600 hover:bg-green-50 rounded-lg transition" 
+                              title="Download Invoice"
+                            >
+                              <FileText className="w-4 h-4" aria-hidden="true" />
+                            </button>
+                            <button 
+                              onClick={() => handleGenerateGatePass(order)} 
+                              aria-label={`Print gate pass for order ${order.order_number}`}
+                              className="p-1.5 text-gray-500 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition" 
+                              title="Print Gate Pass"
+                            >
+                              <Printer className="w-4 h-4" aria-hidden="true" />
+                            </button>
+                            
+                            {/* ✅ ADDITION 4: Record Payment Button (Only shows if not already paid) */}
+                            {order.payment_status !== 'paid' && (
+                              <button 
+                                onClick={() => handleRecordPayment(order.id)} 
+                                className="p-1.5 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-lg transition" 
+                                title="Record Payment"
+                              >
+                                <DollarSign className="w-4 h-4" aria-hidden="true" />
+                              </button>
+                            )}
+                          </>
                         )}
                       </div>
                     </td>
@@ -888,6 +913,23 @@ const SalesPage = () => {
               .select('*')
               .order('name')
             if (customersData) setCustomers(customersData)
+          }
+          fetchData()
+        }}
+      />
+
+      {/* ✅ ADDITION 4: Payment Receipt Modal at the very bottom */}
+      <PaymentReceiptModal
+        isOpen={paymentModalOpen}
+        onClose={() => setPaymentModalOpen(false)}
+        orderId={selectedOrderId || ''}
+        onPaymentRecorded={() => {
+          const fetchData = async () => {
+            const { data: ordersData } = await supabase
+              .from('sales_orders')
+              .select('*, customers:customer_id(name, company, email)')
+              .order('order_date', { ascending: false })
+            if (ordersData) setOrders(ordersData)
           }
           fetchData()
         }}
