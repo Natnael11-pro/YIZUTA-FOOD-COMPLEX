@@ -1,10 +1,8 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '../../config/supabase'
 import { useAuth } from '../../context/AuthContext'
-// ✅ ADDITION 1: Added 'DollarSign' to imports
 import { Plus, Edit2, Trash2, FileText, UserPlus, Printer, DollarSign } from 'lucide-react'
 import AddCustomerModal from '../../components/AddCustomerModal'
-// ✅ ADDITION 1: Added PaymentReceiptModal import
 import PaymentReceiptModal from '../../components/PaymentReceiptModal'
 
 interface Customer {
@@ -27,7 +25,7 @@ interface SalesOrder {
   driver_name: string | null
   vehicle_plate_no: string | null
   quantity_unit: string | null
-  payment_status?: string // ✅ ADDITION 2: Added for payment tracking
+  payment_status?: string
   customers?: {
     name: string
     company: string | null
@@ -36,6 +34,7 @@ interface SalesOrder {
 }
 
 interface InventoryItem {
+  id: string
   item_name: string
   quantity: number
   unit: string
@@ -44,7 +43,6 @@ interface InventoryItem {
 
 const SalesPage = () => {
   const { userRole } = useAuth()
-  
   const canModifyOrders = userRole === 'sales'
 
   const [orders, setOrders] = useState<SalesOrder[]>([])
@@ -56,11 +54,9 @@ const SalesPage = () => {
   const [editingOrder, setEditingOrder] = useState<SalesOrder | null>(null)
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null)
   
-  // ✅ ADDITION 3: Added Modal States
   const [paymentModalOpen, setPaymentModalOpen] = useState(false)
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null)
 
-  // Form state
   const [customerId, setCustomerId] = useState('')
   const [product, setProduct] = useState('')
   const [quantity, setQuantity] = useState('')
@@ -86,18 +82,31 @@ const SalesPage = () => {
 
       const { data: inventoryData } = await supabase
         .from('inventory')
-        .select('item_name, quantity, unit, category')
-        .gt('quantity', 0) 
+        .select('id, item_name, quantity, unit, category')
+        .gt('quantity', 0)
         .order('item_name', { ascending: true })
 
       if (ordersData) setOrders(ordersData)
       if (customersData) setCustomers(customersData)
-      if (inventoryData) setInventory(inventoryData)
+      if (inventoryData) {
+        setInventory(inventoryData)
+        console.log('✅ Inventory loaded:', inventoryData)
+      }
       setLoading(false)
     }
 
     fetchData()
   }, [])
+
+  // ✅ FIXED: Wrapped in useCallback to fix ESLint exhaustive-deps warning
+  const getTotalAvailableQuantity = useCallback((productName: string) => {
+    const matchingItems = inventory.filter(item => 
+      item.item_name.toLowerCase().trim() === productName.toLowerCase().trim()
+    )
+    const total = matchingItems.reduce((sum, item) => sum + item.quantity, 0)
+    console.log(`📦 Total available for "${productName}":`, total, 'Items found:', matchingItems.length)
+    return total
+  }, [inventory])
 
   useEffect(() => {
     const checkStock = async () => {
@@ -106,19 +115,21 @@ const SalesPage = () => {
         return
       }
 
-      const item = inventory.find(i => 
-        i.item_name.toLowerCase() === product.toLowerCase()
-      )
+      const totalAvailable = getTotalAvailableQuantity(product)
       
-      if (!item) {
+      if (totalAvailable === 0) {
         setStockError('Product not found in inventory. Please check spelling.')
       } else {
         const qty = parseFloat(quantity)
-        if (!isNaN(qty) && qty > item.quantity) {
-          setStockError(`Insufficient stock! Only ${item.quantity} ${item.unit} available.`)
+        if (!isNaN(qty) && qty > totalAvailable) {
+          setStockError(`Insufficient stock! Only ${totalAvailable} ${quantityUnit} available in total.`)
         } else {
           setStockError('')
-          if (item.unit) setQuantityUnit(item.unit)
+          // Set unit from first matching item
+          const firstMatch = inventory.find(item => 
+            item.item_name.toLowerCase().trim() === product.toLowerCase().trim()
+          )
+          if (firstMatch?.unit) setQuantityUnit(firstMatch.unit)
         }
       }
     }
@@ -128,9 +139,9 @@ const SalesPage = () => {
     }, 500)
 
     return () => clearTimeout(timer)
-  }, [product, quantity, inventory])
+  }, [product, quantity, inventory, quantityUnit, getTotalAvailableQuantity])
 
-  // ✅ NEW FUNCTION: Generate professional order number
+  // ✅ FIXED: Initialize orderNumber with empty string to fix "used before assigned" error
   const generateOrderNumber = async () => {
     const today = new Date()
     const year = today.getFullYear()
@@ -144,11 +155,39 @@ const SalesPage = () => {
       .gte('order_date', `${year}-${month}-${day}`)
       .lt('order_date', `${year}-${month}-${day}T23:59:59.999Z`)
     
-    const orderCount = (todayOrders?.length || 0) + 1
-    const sequentialNum = String(orderCount).padStart(4, '0')
+    // ✅ FIXED: Initialize with empty string to satisfy TypeScript
+    let orderNumber = ''
+    let isUnique = false
+    let attempts = 0
     
-    // Format: ORD-2026-09-13-0001
-    return `ORD-${year}-${month}-${day}-${sequentialNum}`
+    while (!isUnique && attempts < 10) {
+      const orderCount = (todayOrders?.length || 0) + 1 + attempts
+      const sequentialNum = String(orderCount).padStart(4, '0')
+      orderNumber = `ORD-${year}-${month}-${day}-${sequentialNum}`
+      
+      // Check if this order number already exists
+      const { data: existing } = await supabase
+        .from('sales_orders')
+        .select('id')
+        .eq('order_number', orderNumber)
+        .single()
+      
+      if (!existing) {
+        isUnique = true
+      } else {
+        attempts++
+        console.warn(`Order number ${orderNumber} exists, trying next...`)
+      }
+    }
+    
+    if (!isUnique) {
+      // Fallback: use timestamp for uniqueness
+      const timestamp = Date.now().toString().slice(-6)
+      orderNumber = `ORD-${year}-${month}-${day}-${timestamp}`
+    }
+    
+    console.log(`Generated order number: ${orderNumber}`)
+    return orderNumber
   }
 
   const resetForm = () => {
@@ -166,6 +205,93 @@ const SalesPage = () => {
     setStockError('')
   }
 
+  // ✅ UPDATED: Deduct inventory from multiple items with same name (FIFO)
+  const deductInventory = async (productName: string, quantityToDeduct: number) => {
+    try {
+      console.log(`🔻 Deducting ${quantityToDeduct} of "${productName}" from inventory`)
+      
+      // Get all items with this name, ordered by created_at (FIFO)
+      const { data: items, error: fetchError } = await supabase
+        .from('inventory')
+        .select('id, item_name, quantity')
+        .ilike('item_name', productName)
+        .gt('quantity', 0)
+        .order('created_at', { ascending: true })
+
+      if (fetchError) throw fetchError
+      if (!items || items.length === 0) {
+        console.warn(`️ No inventory items found for "${productName}"`)
+        return
+      }
+
+      console.log(` Found ${items.length} inventory items to deduct from`)
+
+      let remainingToDeduct = quantityToDeduct
+
+      for (const item of items) {
+        if (remainingToDeduct <= 0) break
+
+        const deductAmount = Math.min(item.quantity, remainingToDeduct)
+        const newQuantity = item.quantity - deductAmount
+
+        const { error: updateError } = await supabase
+          .from('inventory')
+          .update({ 
+            quantity: newQuantity,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', item.id)
+
+        if (updateError) throw updateError
+
+        console.log(`✅ Deducted ${deductAmount} from "${item.item_name}" (ID: ${item.id}). New quantity: ${newQuantity}`)
+        remainingToDeduct -= deductAmount
+      }
+
+      if (remainingToDeduct > 0) {
+        console.error(`⚠️ Could not deduct full quantity. Remaining: ${remainingToDeduct}`)
+      }
+    } catch (error) {
+      console.error('Failed to deduct inventory:', error)
+      throw error
+    }
+  }
+
+  // ✅ UPDATED: Add inventory back when order is cancelled/deleted
+  const addInventoryBack = async (productName: string, quantityToAdd: number) => {
+    try {
+      console.log(`🔺 Adding ${quantityToAdd} of "${productName}" back to inventory`)
+      
+      // Add back to the first matching item
+      const { data: items } = await supabase
+        .from('inventory')
+        .select('id, item_name, quantity')
+        .ilike('item_name', productName)
+        .order('created_at', { ascending: true })
+
+      if (!items || items.length === 0) {
+        console.warn(`⚠️ No inventory items found for "${productName}" to add back`)
+        return
+      }
+
+      const firstItem = items[0]
+      const newQuantity = firstItem.quantity + quantityToAdd
+
+      const { error } = await supabase
+        .from('inventory')
+        .update({ 
+          quantity: newQuantity,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', firstItem.id)
+
+      if (error) throw error
+      console.log(`✅ Added ${quantityToAdd} back to "${firstItem.item_name}". New quantity: ${newQuantity}`)
+    } catch (error) {
+      console.error('Failed to add inventory back:', error)
+    }
+  }
+
   const handleCreateOrder = async () => {
     if (!customerId || !product || !quantity || !unitPrice) {
       alert('Please fill in all required fields')
@@ -178,48 +304,15 @@ const SalesPage = () => {
     }
 
     const totalAmount = parseFloat(quantity) * parseFloat(unitPrice)
-    
-    // ✅ Generate professional order number
+    const orderQuantity = parseFloat(quantity)
     const orderNumber = await generateOrderNumber()
 
-    const { error } = await supabase.from('sales_orders').insert({
-      order_number: orderNumber, // ✅ Use generated order number
-      customer_id: customerId,
-      product,
-      quantity: parseFloat(quantity),
-      unit_price: parseFloat(unitPrice),
-      total_amount: totalAmount,
-      order_date: orderDate,
-      status,
-      driver_name: driverName || null,
-      vehicle_plate_no: vehiclePlateNo || null,
-      quantity_unit: quantityUnit
-    })
-
-    if (error) {
-      alert('Error creating order: ' + error.message)
-    } else {
-      alert(`Order ${orderNumber} created successfully!`)
-      resetForm()
-      const { data: ordersData } = await supabase
-        .from('sales_orders')
-        .select('*, customers:customer_id(name, company, email)')
-        .order('order_date', { ascending: false })
-      if (ordersData) setOrders(ordersData)
-    }
-  }
-
-  const handleUpdateOrder = async () => {
-    if (!editingOrder) return
-
-    const totalAmount = parseFloat(quantity) * parseFloat(unitPrice)
-
-    const { error } = await supabase
-      .from('sales_orders')
-      .update({
+    try {
+      const { error: orderError } = await supabase.from('sales_orders').insert({
+        order_number: orderNumber,
         customer_id: customerId,
         product,
-        quantity: parseFloat(quantity),
+        quantity: orderQuantity,
         unit_price: parseFloat(unitPrice),
         total_amount: totalAmount,
         order_date: orderDate,
@@ -228,32 +321,131 @@ const SalesPage = () => {
         vehicle_plate_no: vehiclePlateNo || null,
         quantity_unit: quantityUnit
       })
-      .eq('id', editingOrder.id)
 
-    if (error) {
-      alert('Error updating order: ' + error.message)
-    } else {
-      alert('Order updated successfully!')
+      if (orderError) throw orderError
+
+      // ✅ Deduct from inventory if order is completed
+      if (status === 'completed') {
+        await deductInventory(product, orderQuantity)
+      }
+
+      alert(`Order ${orderNumber} created successfully!`)
       resetForm()
+      
       const { data: ordersData } = await supabase
         .from('sales_orders')
         .select('*, customers:customer_id(name, company, email)')
         .order('order_date', { ascending: false })
       if (ordersData) setOrders(ordersData)
+      
+      // Refresh inventory
+      const { data: inventoryData } = await supabase
+        .from('inventory')
+        .select('id, item_name, quantity, unit, category')
+        .gt('quantity', 0)
+        .order('item_name', { ascending: true })
+      if (inventoryData) setInventory(inventoryData)
+      
+    } catch (error) {
+      alert('Error creating order: ' + (error as Error).message)
+    }
+  }
+
+  const handleUpdateOrder = async () => {
+    if (!editingOrder) return
+
+    const totalAmount = parseFloat(quantity) * parseFloat(unitPrice)
+    const newQuantity = parseFloat(quantity)
+    const oldQuantity = editingOrder.quantity
+    const quantityDifference = newQuantity - oldQuantity
+
+    try {
+      const { error: orderError } = await supabase
+        .from('sales_orders')
+        .update({
+          customer_id: customerId,
+          product,
+          quantity: newQuantity,
+          unit_price: parseFloat(unitPrice),
+          total_amount: totalAmount,
+          order_date: orderDate,
+          status,
+          driver_name: driverName || null,
+          vehicle_plate_no: vehiclePlateNo || null,
+          quantity_unit: quantityUnit
+        })
+        .eq('id', editingOrder.id)
+
+      if (orderError) throw orderError
+
+      // ✅ Update inventory if quantity or status changed
+      if (status === 'completed') {
+        if (editingOrder.status === 'completed') {
+          if (quantityDifference > 0) {
+            await deductInventory(product, quantityDifference)
+          } else if (quantityDifference < 0) {
+            await addInventoryBack(product, Math.abs(quantityDifference))
+          }
+        } else {
+          await deductInventory(product, newQuantity)
+        }
+      } else if (editingOrder.status === 'completed' && status !== 'completed') {
+        await addInventoryBack(product, oldQuantity)
+      }
+
+      alert('Order updated successfully!')
+      resetForm()
+      
+      const { data: ordersData } = await supabase
+        .from('sales_orders')
+        .select('*, customers:customer_id(name, company, email)')
+        .order('order_date', { ascending: false })
+      if (ordersData) setOrders(ordersData)
+      
+      const { data: inventoryData } = await supabase
+        .from('inventory')
+        .select('id, item_name, quantity, unit, category')
+        .gt('quantity', 0)
+        .order('item_name', { ascending: true })
+      if (inventoryData) setInventory(inventoryData)
+      
+    } catch (error) {
+      alert('Error updating order: ' + (error as Error).message)
     }
   }
 
   const handleDeleteOrder = async (id: string) => {
-    const { error } = await supabase.from('sales_orders').delete().eq('id', id)
-    if (error) {
-      alert('Error deleting order: ' + error.message)
-    } else {
+    try {
+      const { data: order } = await supabase
+        .from('sales_orders')
+        .select('product, quantity, status')
+        .eq('id', id)
+        .single()
+
+      const { error } = await supabase.from('sales_orders').delete().eq('id', id)
+      if (error) throw error
+
+      // ✅ Add stock back if order was completed
+      if (order && order.status === 'completed') {
+        await addInventoryBack(order.product, order.quantity)
+      }
+
       setDeleteConfirmId(null)
       const { data: ordersData } = await supabase
         .from('sales_orders')
         .select('*, customers:customer_id(name, company, email)')
         .order('order_date', { ascending: false })
       if (ordersData) setOrders(ordersData)
+      
+      const { data: inventoryData } = await supabase
+        .from('inventory')
+        .select('id, item_name, quantity, unit, category')
+        .gt('quantity', 0)
+        .order('item_name', { ascending: true })
+      if (inventoryData) setInventory(inventoryData)
+      
+    } catch (error) {
+      alert('Error deleting order: ' + (error as Error).message)
     }
   }
 
@@ -271,7 +463,6 @@ const SalesPage = () => {
     setIsCreating(true)
   }
 
-  // ✅ ADDITION 3: Added Handler Function for Payment Modal
   const handleRecordPayment = (orderId: string) => {
     setSelectedOrderId(orderId)
     setPaymentModalOpen(true)
@@ -284,44 +475,22 @@ const SalesPage = () => {
     const totalWithTax = subtotal + taxAmount
 
     const csvContent = [
-      ['INVOICE'],
-      [''],
-      ['YIZUTA Food Complex'],
-      ['Dire Dawa, Ethiopia'],
-      [''],
-      ['Invoice Number:', `INV-${order.order_number}`],
-      ['Order Number:', order.order_number],
-      ['Issue Date:', new Date().toLocaleDateString()],
-      ['Order Date:', order.order_date],
-      [''],
-      ['BILL TO:'],
-      ['Customer:', order.customers?.name || 'N/A'],
-      ['Company:', order.customers?.company || 'N/A'],
-      ['Email:', order.customers?.email || 'N/A'],
-      [''],
-      ['DELIVERY DETAILS:'],
-      ['Driver Name:', order.driver_name || 'N/A'],
-      ['Vehicle Plate:', order.vehicle_plate_no || 'N/A'],
-      [''],
-      ['ITEMS:'],
-      ['Description', 'Quantity', 'Unit', 'Unit Price (ETB)', 'Total (ETB)'],
-      [order.product, order.quantity.toString(), order.quantity_unit || 'Boxes', order.unit_price.toFixed(2), order.total_amount.toFixed(2)],
-      [''],
-      ['SUMMARY:'],
-      ['Subtotal:', '', '', '', subtotal.toFixed(2)],
-      ['VAT (15%):', '', '', '', taxAmount.toFixed(2)],
-      ['TOTAL AMOUNT:', '', '', '', totalWithTax.toFixed(2)],
-      [''],
-      ['Status:', order.status.toUpperCase()],
-      [''],
-      ['Thank you for your business!'],
-      ['This is a computer-generated invoice.']
+      ['INVOICE'], [''], ['YIZUTA Food Complex'], ['Dire Dawa, Ethiopia'], [''],
+      ['Invoice Number:', `INV-${order.order_number}`], ['Order Number:', order.order_number],
+      ['Issue Date:', new Date().toLocaleDateString()], ['Order Date:', order.order_date], [''],
+      ['BILL TO:'], ['Customer:', order.customers?.name || 'N/A'], ['Company:', order.customers?.company || 'N/A'],
+      ['Email:', order.customers?.email || 'N/A'], [''], ['DELIVERY DETAILS:'],
+      ['Driver Name:', order.driver_name || 'N/A'], ['Vehicle Plate:', order.vehicle_plate_no || 'N/A'], [''],
+      ['ITEMS:'], ['Description', 'Quantity', 'Unit', 'Unit Price (ETB)', 'Total (ETB)'],
+      [order.product, order.quantity.toString(), order.quantity_unit || 'Boxes', order.unit_price.toFixed(2), order.total_amount.toFixed(2)], [''],
+      ['SUMMARY:'], ['Subtotal:', '', '', '', subtotal.toFixed(2)], ['VAT (15%):', '', '', '', taxAmount.toFixed(2)],
+      ['TOTAL AMOUNT:', '', '', '', totalWithTax.toFixed(2)], [''], ['Status:', order.status.toUpperCase()], [''],
+      ['Thank you for your business!'], ['This is a computer-generated invoice.']
     ].map(row => row.join(',')).join('\n')
 
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
     const link = document.createElement('a')
-    const url = URL.createObjectURL(blob)
-    link.setAttribute('href', url)
+    link.setAttribute('href', URL.createObjectURL(blob))
     link.setAttribute('download', `Invoice_${order.order_number}_${order.order_date}.csv`)
     link.style.visibility = 'hidden'
     document.body.appendChild(link)
@@ -337,7 +506,6 @@ const SalesPage = () => {
     }
 
     const currentDate = new Date().toLocaleDateString()
-
     const gatePassHTML = `
       <!DOCTYPE html>
       <html lang="en">
@@ -367,10 +535,7 @@ const SalesPage = () => {
             .gate-grid p { margin: 8px 0; font-size: 12px; }
             .no-print { margin-top: 20px; text-align: center; }
             .no-print button { padding: 10px 20px; font-size: 16px; cursor: pointer; margin: 0 10px; }
-            @media print {
-              body { margin: 0; padding: 0; }
-              .no-print { display: none; }
-            }
+            @media print { body { margin: 0; padding: 0; } .no-print { display: none; } }
           </style>
         </head>
         <body>
@@ -391,7 +556,6 @@ const SalesPage = () => {
                 </table>
               </div>
             </div>
-
             <div class="transport-info">
               <div class="col">
                 <p><strong>Customer:</strong> ${order.customers?.name || 'N/A'}</p>
@@ -404,7 +568,6 @@ const SalesPage = () => {
                 <p><strong>Mode of Transport:</strong> Road / Truck</p>
               </div>
             </div>
-
             <h3>Please release the following goods:</h3>
             <table class="goods-table">
               <thead>
@@ -426,28 +589,23 @@ const SalesPage = () => {
                 </tr>
               </tbody>
             </table>
-
             <div class="signatures">
               <div class="sig-box">
-                <p><strong>Prepared By (Sales):</strong></p>
-                <br />
+                <p><strong>Prepared By (Sales):</strong></p><br />
                 <p>Sign: __________________</p>
                 <p>Date: ${currentDate}</p>
               </div>
               <div class="sig-box">
-                <p><strong>Issued By (Warehouse):</strong></p>
-                <br />
+                <p><strong>Issued By (Warehouse):</strong></p><br />
                 <p>Sign: __________________</p>
                 <p>Date: ${currentDate}</p>
               </div>
               <div class="sig-box">
-                <p><strong>Received By (Driver):</strong></p>
-                <br />
+                <p><strong>Received By (Driver):</strong></p><br />
                 <p>Sign: __________________</p>
                 <p>Date: ${currentDate}</p>
               </div>
             </div>
-
             <div class="gate-section">
               <h3>FOR GATE KEEPER USE ONLY</h3>
               <div class="gate-grid">
@@ -462,15 +620,11 @@ const SalesPage = () => {
               </div>
             </div>
           </div>
-
           <div class="no-print">
-            <button onclick="window.print()" aria-label="Print Gate Pass">Print Gate Pass</button>
-            <button onclick="window.close()" aria-label="Close window">Close</button>
+            <button onclick="window.print()">Print Gate Pass</button>
+            <button onclick="window.close()">Close</button>
           </div>
-
-          <script>
-            window.onload = function() { window.print(); }
-          </script>
+          <script>window.onload = function() { window.print(); }</script>
         </body>
       </html>
     `
@@ -500,12 +654,7 @@ const SalesPage = () => {
           <h1 className="text-3xl font-bold text-gray-900">
             {editingOrder ? 'Edit Sales Order' : 'Create Sales Order'}
           </h1>
-          <button 
-            onClick={resetForm} 
-            className="text-gray-600 hover:text-gray-900"
-          >
-            Cancel
-          </button>
+          <button onClick={resetForm} className="text-gray-600 hover:text-gray-900">Cancel</button>
         </div>
 
         <div className="bg-white border border-gray-200 rounded-xl p-6 space-y-4">
@@ -549,6 +698,9 @@ const SalesPage = () => {
                     </li>
                   ))}
                 </ul>
+                <p className="font-medium text-blue-900 mt-2">
+                  Total Available: {getTotalAvailableQuantity(product)} {quantityUnit}
+                </p>
               </div>
             )}
             {stockError && (
@@ -702,7 +854,6 @@ const SalesPage = () => {
         )}
       </div>
 
-      {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <div className="p-6 bg-white border border-gray-200 rounded-xl">
           <p className="text-sm text-gray-500">Total Customers</p>
@@ -719,7 +870,7 @@ const SalesPage = () => {
           <p className="text-2xl font-bold text-gray-900">
             {formatCurrency(orders.reduce((sum, order) => sum + order.total_amount, 0))}
           </p>
-          <p className="text-xs text-green-600">↗ +12.5%</p>
+          <p className="text-xs text-green-600"> +12.5%</p>
         </div>
         <div className="p-6 bg-white border border-gray-200 rounded-xl">
           <p className="text-sm text-gray-500">Avg Order Value</p>
@@ -730,9 +881,7 @@ const SalesPage = () => {
         </div>
       </div>
 
-      {/* Recent Orders and Top Customers Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Recent Orders Table */}
         <div className="lg:col-span-2 bg-white border border-gray-200 rounded-xl overflow-hidden">
           <div className="p-6 border-b border-gray-200">
             <h2 className="text-lg font-semibold text-gray-900">Recent Orders</h2>
@@ -828,7 +977,6 @@ const SalesPage = () => {
                               <Printer className="w-4 h-4" aria-hidden="true" />
                             </button>
                             
-                            {/* ✅ ADDITION 4: Record Payment Button (Only shows if not already paid) */}
                             {order.payment_status !== 'paid' && (
                               <button 
                                 onClick={() => handleRecordPayment(order.id)} 
@@ -849,7 +997,6 @@ const SalesPage = () => {
           </table>
         </div>
 
-        {/* Top Customers Section */}
         <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
           <div className="p-4 border-b border-gray-200 flex items-center justify-between">
             <h2 className="text-lg font-semibold text-gray-900">Top Customers</h2>
@@ -901,7 +1048,6 @@ const SalesPage = () => {
         </div>
       </div>
 
-      {/* Add Customer Modal */}
       <AddCustomerModal
         isOpen={isCustomerModalOpen}
         onClose={() => setIsCustomerModalOpen(false)}
@@ -918,7 +1064,6 @@ const SalesPage = () => {
         }}
       />
 
-      {/* ✅ ADDITION 4: Payment Receipt Modal at the very bottom */}
       <PaymentReceiptModal
         isOpen={paymentModalOpen}
         onClose={() => setPaymentModalOpen(false)}

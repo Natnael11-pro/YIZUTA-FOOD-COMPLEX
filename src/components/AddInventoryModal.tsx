@@ -16,7 +16,7 @@ const AddInventoryModal = ({ isOpen, onClose, onItemAdded }: AddInventoryModalPr
   const [unit, setUnit] = useState('units')
   const [category, setCategory] = useState('')
   const [status, setStatus] = useState('in_stock')
-  const [unitCost, setUnitCost] = useState('') // ✅ NEW: Unit cost state
+  const [unitCost, setUnitCost] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
@@ -28,22 +28,47 @@ const AddInventoryModal = ({ isOpen, onClose, onItemAdded }: AddInventoryModalPr
     setLoading(true)
 
     try {
-      const { error } = await supabase
+      // ✅ Check if item with same name already exists
+      const { data: existingItem } = await supabase
         .from('inventory')
-        .insert({
-          item_name: itemName,
-          sku: sku,
-          quantity: parseInt(quantity),
-          reorder_level: parseInt(reorderLevel),
-          unit: unit,
-          category: category || null,
-          status: status,
-          unit_cost: parseFloat(unitCost) || 0 // ✅ NEW: Insert unit cost into database
-        })
+        .select('id, quantity')
+        .ilike('item_name', itemName.trim())
+        .single()
 
-      if (error) throw error
+      if (existingItem) {
+        // ✅ If exists, UPDATE the quantity instead of creating duplicate
+        const newQuantity = existingItem.quantity + parseInt(quantity)
+        const { error } = await supabase
+          .from('inventory')
+          .update({
+            quantity: newQuantity,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', existingItem.id)
 
-      alert('Inventory item added successfully!')
+        if (error) throw error
+
+        alert(`Inventory updated! Added ${quantity} to existing "${itemName}". New total: ${newQuantity}`)
+      } else {
+        // ✅ Create new item if it doesn't exist
+        const { error } = await supabase
+          .from('inventory')
+          .insert({
+            item_name: itemName.trim(),
+            sku: sku,
+            quantity: parseInt(quantity),
+            reorder_level: parseInt(reorderLevel),
+            unit: unit,
+            category: category || null,
+            status: status,
+            unit_cost: parseFloat(unitCost) || 0
+          })
+
+        if (error) throw error
+
+        alert('Inventory item added successfully!')
+      }
+
       onItemAdded()
       onClose()
       
@@ -53,7 +78,7 @@ const AddInventoryModal = ({ isOpen, onClose, onItemAdded }: AddInventoryModalPr
       setQuantity('')
       setReorderLevel('')
       setCategory('')
-      setUnitCost('') // ✅ NEW: Reset unit cost
+      setUnitCost('')
       
     } catch (err: unknown) {
       console.error('Error adding item:', err)
@@ -93,11 +118,12 @@ const AddInventoryModal = ({ isOpen, onClose, onItemAdded }: AddInventoryModalPr
               type="text"
               value={itemName}
               onChange={(e) => setItemName(e.target.value)}
-              placeholder="e.g., Wheat"
+              placeholder="e.g., Short-cut Pasta"
               className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               required
               aria-required="true"
             />
+            <p className="text-xs text-gray-500 mt-1">If item exists, quantity will be added to existing stock</p>
           </div>
 
           <div>
@@ -143,7 +169,6 @@ const AddInventoryModal = ({ isOpen, onClose, onItemAdded }: AddInventoryModalPr
             </div>
           </div>
 
-          {/* ✅ NEW: Unit Cost Input Field */}
           <div>
             <label htmlFor="unit-cost" className="block mb-1.5 text-sm font-medium text-gray-700">Unit Cost (ETB)</label>
             <input
