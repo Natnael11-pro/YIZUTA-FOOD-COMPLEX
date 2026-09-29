@@ -2,7 +2,8 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '../../config/supabase'
 import { useAuth } from '../../context/AuthContext'
-import { Activity, CheckCircle, TrendingUp, Zap, Package, Plus, Send, RefreshCw, Trash2, AlertTriangle } from 'lucide-react'
+// ✅ Added 'Factory' to imports
+import { Activity, CheckCircle, TrendingUp, Zap, Package, Plus, Send, RefreshCw, Trash2, AlertTriangle, Factory } from 'lucide-react'
 import AddBatchModal from '../../components/AddBatchModal'
 import AddProductionLineModal from '../../components/AddProductionLineModal'
 import RequestMaterialModal from '../../components/RequestMaterialModal'
@@ -42,6 +43,15 @@ interface MaterialRequest {
   created_at: string
 }
 
+// ✅ NEW: Interface for Production Requests from Warehouse
+interface ProductionRequest {
+  id: string
+  item_name: string
+  quantity_needed: number
+  status: string
+  created_at: string
+}
+
 const ProductionPage = () => {
   const { userRole } = useAuth()
   const canModifyProduction = userRole === 'production_manager'
@@ -49,6 +59,8 @@ const ProductionPage = () => {
   const [lines, setLines] = useState<ProductionLine[]>([])
   const [batches, setBatches] = useState<Batch[]>([])
   const [requests, setRequests] = useState<MaterialRequest[]>([])
+  const [productionOrders, setProductionOrders] = useState<ProductionRequest[]>([]) // ✅ NEW State
+  
   const [loading, setLoading] = useState(true)
   const [isBatchModalOpen, setIsBatchModalOpen] = useState(false)
   const [isLineModalOpen, setIsLineModalOpen] = useState(false)
@@ -86,6 +98,16 @@ const ProductionPage = () => {
       if (requestError) console.error('Requests error:', requestError)
       setRequests(requestData || [])
 
+      // ✅ 4. Fetch Pending Production Orders (from Warehouse)
+      const { data: prodOrdersData, error: prodOrdersError } = await supabase
+        .from('production_requests')
+        .select('*')
+        .eq('status', 'pending')
+        .order('created_at', { ascending: false })
+      
+      if (prodOrdersError) console.error('Production orders error:', prodOrdersError)
+      setProductionOrders(prodOrdersData || [])
+
     } catch (error) {
       console.error('Error fetching data:', error)
     } finally {
@@ -96,6 +118,37 @@ const ProductionPage = () => {
   useEffect(() => {
     fetchData()
   }, [fetchData])
+
+  // ✅ NEW: Function to Fulfill a Production Request
+  const handleFulfillOrder = async (order: ProductionRequest) => {
+    const qty = prompt(`How many units of ${order.item_name} did you produce?`, order.quantity_needed.toString())
+    if (!qty) return
+
+    try {
+      // ✅ FIX: Use order.id to generate a unique, traceable batch ID. 
+      // This completely avoids Date.now() and satisfies the purity linter perfectly.
+      const batchId = `REQ-${order.id.slice(0, 8)}`
+      
+      // 1. Create Transfer Record for Warehouse
+      const { error: transferError } = await supabase.from('transfer_requests').insert({
+        product_name: order.item_name,
+        quantity: parseInt(qty),
+        unit: 'boxes', // Default unit, can be adjusted
+        status: 'pending',
+        batch_id: batchId
+      })
+      if (transferError) throw transferError
+
+      // 2. Mark Production Request as Fulfilled
+      await supabase.from('production_requests').update({ status: 'fulfilled' }).eq('id', order.id)
+
+      alert(`Sent ${qty} units to Warehouse!`)
+      fetchData()
+    } catch (error) {
+      console.error(error)
+      alert('Error sending to warehouse')
+    }
+  }
 
   const handleQualityCheck = async (batchId: string, qualityStatus: 'pass' | 'fail') => {
     if (!confirm(`Mark this batch as ${qualityStatus.toUpperCase()}?`)) {
@@ -261,6 +314,32 @@ const ProductionPage = () => {
         <h1 className="text-3xl font-bold text-gray-900">Production</h1>
         <p className="mt-1 text-sm text-gray-500">Manufacturing operations and quality control</p>
       </div>
+
+      {/* ✅ NEW: Urgent Production Requests Section */}
+      {productionOrders.length > 0 && (
+        <div className="bg-orange-50 border border-orange-200 rounded-xl p-6">
+          <h2 className="text-lg font-bold text-orange-800 flex items-center gap-2 mb-4">
+            <Factory className="w-5 h-5" /> Urgent Production Requests ({productionOrders.length})
+          </h2>
+          <p className="text-sm text-orange-700 mb-4">The Warehouse has requested these items due to low stock.</p>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {productionOrders.map(order => (
+              <div key={order.id} className="bg-white p-4 rounded-lg border border-orange-100 shadow-sm flex justify-between items-center">
+                <div>
+                  <p className="font-bold text-gray-900">{order.item_name}</p>
+                  <p className="text-sm text-gray-600">Need: {order.quantity_needed} units</p>
+                </div>
+                <button 
+                  onClick={() => handleFulfillOrder(order)}
+                  className="px-3 py-1.5 bg-orange-600 text-white rounded-lg hover:bg-orange-700 text-sm font-medium"
+                >
+                  Produce & Send
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <div className="p-6 bg-white border border-gray-200 rounded-xl">

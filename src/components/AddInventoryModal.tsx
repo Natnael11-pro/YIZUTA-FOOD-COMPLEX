@@ -17,6 +17,7 @@ const AddInventoryModal = ({ isOpen, onClose, onItemAdded }: AddInventoryModalPr
   const [category, setCategory] = useState('')
   const [status, setStatus] = useState('in_stock')
   const [unitCost, setUnitCost] = useState('')
+  const [location, setLocation] = useState('') // ✅ NEW: Location state
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
@@ -31,7 +32,7 @@ const AddInventoryModal = ({ isOpen, onClose, onItemAdded }: AddInventoryModalPr
       // ✅ Check if item with same name already exists
       const { data: existingItem } = await supabase
         .from('inventory')
-        .select('id, quantity')
+        .select('id, quantity, location')
         .ilike('item_name', itemName.trim())
         .single()
 
@@ -42,6 +43,7 @@ const AddInventoryModal = ({ isOpen, onClose, onItemAdded }: AddInventoryModalPr
           .from('inventory')
           .update({
             quantity: newQuantity,
+            location: location || existingItem.location, // ✅ Update location if provided
             updated_at: new Date().toISOString()
           })
           .eq('id', existingItem.id)
@@ -61,7 +63,8 @@ const AddInventoryModal = ({ isOpen, onClose, onItemAdded }: AddInventoryModalPr
             unit: unit,
             category: category || null,
             status: status,
-            unit_cost: parseFloat(unitCost) || 0
+            unit_cost: parseFloat(unitCost) || 0,
+            location: location || 'Main Warehouse' // ✅ NEW: Insert location
           })
 
         if (error) throw error
@@ -79,6 +82,7 @@ const AddInventoryModal = ({ isOpen, onClose, onItemAdded }: AddInventoryModalPr
       setReorderLevel('')
       setCategory('')
       setUnitCost('')
+      setLocation('') // ✅ NEW: Reset location
       
     } catch (err: unknown) {
       console.error('Error adding item:', err)
@@ -183,6 +187,20 @@ const AddInventoryModal = ({ isOpen, onClose, onItemAdded }: AddInventoryModalPr
               aria-required="true"
             />
             <p className="text-xs text-gray-500 mt-1">Cost per single unit (e.g., per kg, per box)</p>
+          </div>
+
+          {/* ✅ NEW: Location Input Field */}
+          <div>
+            <label htmlFor="location" className="block mb-1.5 text-sm font-medium text-gray-700">Storage Location</label>
+            <input
+              id="location"
+              type="text"
+              value={location}
+              onChange={(e) => setLocation(e.target.value)}
+              placeholder="e.g., Aisle A, Shelf 2"
+              className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+            <p className="text-xs text-gray-500 mt-1">Where is this item stored in the warehouse?</p>
           </div>
 
           <div className="grid grid-cols-2 gap-4">

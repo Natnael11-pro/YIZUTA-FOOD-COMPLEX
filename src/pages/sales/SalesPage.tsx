@@ -39,6 +39,7 @@ interface InventoryItem {
   quantity: number
   unit: string
   category: string
+  location?: string // ✅ NEW: Location field
 }
 
 const SalesPage = () => {
@@ -82,7 +83,7 @@ const SalesPage = () => {
 
       const { data: inventoryData } = await supabase
         .from('inventory')
-        .select('id, item_name, quantity, unit, category')
+        .select('id, item_name, quantity, unit, category, location') // ✅ NEW: Select location
         .gt('quantity', 0)
         .order('item_name', { ascending: true })
 
@@ -341,7 +342,7 @@ const SalesPage = () => {
       // Refresh inventory
       const { data: inventoryData } = await supabase
         .from('inventory')
-        .select('id, item_name, quantity, unit, category')
+        .select('id, item_name, quantity, unit, category, location') // ✅ NEW: Select location
         .gt('quantity', 0)
         .order('item_name', { ascending: true })
       if (inventoryData) setInventory(inventoryData)
@@ -404,7 +405,7 @@ const SalesPage = () => {
       
       const { data: inventoryData } = await supabase
         .from('inventory')
-        .select('id, item_name, quantity, unit, category')
+        .select('id, item_name, quantity, unit, category, location') // ✅ NEW: Select location
         .gt('quantity', 0)
         .order('item_name', { ascending: true })
       if (inventoryData) setInventory(inventoryData)
@@ -439,7 +440,7 @@ const SalesPage = () => {
       
       const { data: inventoryData } = await supabase
         .from('inventory')
-        .select('id, item_name, quantity, unit, category')
+        .select('id, item_name, quantity, unit, category, location') // ✅ NEW: Select location
         .gt('quantity', 0)
         .order('item_name', { ascending: true })
       if (inventoryData) setInventory(inventoryData)
@@ -506,6 +507,10 @@ const SalesPage = () => {
     }
 
     const currentDate = new Date().toLocaleDateString()
+    
+    // ✅ NEW: Find the location of the product to print on the gate pass
+    const productLocation = inventory.find(i => i.item_name.toLowerCase() === order.product.toLowerCase())?.location || 'Main Warehouse'
+
     const gatePassHTML = `
       <!DOCTYPE html>
       <html lang="en">
@@ -577,6 +582,7 @@ const SalesPage = () => {
                   <th scope="col">Product Name</th>
                   <th scope="col">Quantity</th>
                   <th scope="col">Unit</th>
+                  <th scope="col">Location</th>
                 </tr>
               </thead>
               <tbody>
@@ -586,6 +592,7 @@ const SalesPage = () => {
                   <td>${order.product}</td>
                   <td>${order.quantity}</td>
                   <td>${order.quantity_unit || 'Boxes'}</td>
+                  <td>${productLocation}</td>
                 </tr>
               </tbody>
             </table>
@@ -694,7 +701,8 @@ const SalesPage = () => {
                 <ul className="mt-1 space-y-1">
                   {inventory.map((item, idx) => (
                     <li key={idx} className="text-blue-700">
-                      {item.item_name} - {item.quantity} {item.unit} available
+                      {/* ✅ NEW: Show location in the available list */}
+                      {item.item_name} - {item.quantity} {item.unit} available {item.location ? `(Loc: ${item.location})` : ''}
                     </li>
                   ))}
                 </ul>

@@ -18,6 +18,7 @@ interface InventoryItem {
   status: string
   created_at: string
   unit_cost?: number // ✅ Added for expense calculation
+  location?: string // ✅ NEW: Location field
 }
 
 interface Shipment {
@@ -103,6 +104,44 @@ const WarehousePage = () => {
       console.error('Error fetching transfer requests:', error)
     }
   }, [])
+
+  // ✅ UPDATED: Auto-generate production requests for low stock items (Fixed Duplicates)
+  const checkAndCreateProductionRequests = async (currentInventory: InventoryItem[]) => {
+    for (const item of currentInventory) {
+      // Only trigger if stock is at or below reorder level
+      if (item.quantity <= item.reorder_level) {
+        
+        // Clean the name to prevent "Pasta " vs "Pasta" issues
+        const cleanItemName = item.item_name.trim();
+
+        // Check if a pending request ALREADY exists for this specific item
+        const { data: existingRequest } = await supabase
+          .from('production_requests')
+          .select('id')
+          .eq('item_name', cleanItemName) // Match the clean name
+          .eq('status', 'pending')        // Only look for pending ones
+          .single()
+
+        // If NO pending request exists, create one automatically
+        if (!existingRequest) {
+          const { error } = await supabase
+            .from('production_requests')
+            .insert({
+              item_name: cleanItemName,
+              // Logic: Produce enough to get back to a safe level (Reorder Level * 2)
+              quantity_needed: item.reorder_level * 2, 
+              status: 'pending'
+            })
+
+          if (error) {
+            console.error(`Failed to auto-generate request for ${cleanItemName}:`, error)
+          } else {
+            console.log(`✅ Auto-generated production request for ${cleanItemName}`)
+          }
+        }
+      }
+    }
+  }
 
   // ✅ UPDATED: Auto-log expense when approving material requests
   const handleRequestAction = async (id: string, action: 'approved' | 'rejected') => {
@@ -195,7 +234,8 @@ const WarehousePage = () => {
             quantity: request.quantity,
             unit: request.unit,
             reorder_level: 10,
-            status: 'in_stock'
+            status: 'in_stock',
+            location: 'Main Warehouse' // ✅ NEW: Set default location
           })
 
         if (error) throw error
@@ -257,6 +297,11 @@ const WarehousePage = () => {
 
       if (inventoryError) throw inventoryError
       setInventory(inventoryData || [])
+
+      // ✅ NEW: Check low stock and auto-generate production requests
+      if (inventoryData && inventoryData.length > 0) {
+        await checkAndCreateProductionRequests(inventoryData)
+      }
 
       const { data: shipmentsData, error: shipmentsError } = await supabase
         .from('shipments')
@@ -408,13 +453,13 @@ const WarehousePage = () => {
         </div>
       </div>
 
-      {/* ✅ ACCESSIBILITY: Added role="alert" for screen readers to announce low stock immediately */}
+      {/* ✅ UPDATED: Alert message now mentions automatic production notification */}
       {lowStockItems > 0 && (
         <div className="p-4 bg-red-50 border border-red-200 rounded-lg" role="alert">
           <div className="flex items-center">
             <AlertTriangle className="w-5 h-5 text-red-600 mr-3" aria-hidden="true" />
             <p className="text-sm font-medium text-red-800">
-              {lowStockItems} item(s) are below reorder level. Please restock soon.
+              {lowStockItems} item(s) are below reorder level. Production has been notified automatically.
             </p>
           </div>
         </div>
@@ -480,6 +525,7 @@ const WarehousePage = () => {
                     <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Item</th>
                     <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">SKU</th>
                     <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Quantity</th>
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Location</th> {/* ✅ NEW */}
                     <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
                     {canModifyWarehouse && (
                       <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
@@ -488,9 +534,9 @@ const WarehousePage = () => {
                 </thead>
                 <tbody className="divide-y divide-gray-200">
                   {loading ? (
-                    <tr><td colSpan={canModifyWarehouse ? 5 : 4} className="px-6 py-8 text-center text-gray-500">Loading...</td></tr>
+                    <tr><td colSpan={canModifyWarehouse ? 6 : 5} className="px-6 py-8 text-center text-gray-500">Loading...</td></tr>
                   ) : inventory.length === 0 ? (
-                    <tr><td colSpan={canModifyWarehouse ? 5 : 4} className="px-6 py-8 text-center text-gray-500">No inventory items yet</td></tr>
+                    <tr><td colSpan={canModifyWarehouse ? 6 : 5} className="px-6 py-8 text-center text-gray-500">No inventory items yet</td></tr>
                   ) : (
                     inventory.slice(0, 5).map((item: InventoryItem) => (
                       <tr key={item.id} className="hover:bg-gray-50">
@@ -500,6 +546,7 @@ const WarehousePage = () => {
                           <p className="text-sm font-medium text-gray-900">{item.quantity} {item.unit}</p>
                           <p className="text-xs text-gray-500">Reorder: {item.reorder_level} {item.unit}</p>
                         </td>
+                        <td className="px-6 py-4 text-sm text-gray-600">{item.location || 'N/A'}</td> {/* ✅ NEW */}
                         <td className="px-6 py-4">{getStatusBadge(item)}</td>
                         {canModifyWarehouse && (
                           <td className="px-6 py-4">

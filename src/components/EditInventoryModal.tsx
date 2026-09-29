@@ -17,6 +17,7 @@ const EditInventoryModal = ({ isOpen, onClose, onItemUpdated, itemId }: EditInve
   const [unit, setUnit] = useState('units')
   const [category, setCategory] = useState('')
   const [status, setStatus] = useState('in_stock')
+  const [location, setLocation] = useState('') // ✅ NEW: Location state
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
@@ -37,6 +38,7 @@ const EditInventoryModal = ({ isOpen, onClose, onItemUpdated, itemId }: EditInve
           setUnit(data.unit)
           setCategory(data.category || '')
           setStatus(data.status)
+          setLocation(data.location || '') // ✅ NEW: Load location
         }
       }
       loadItem()
@@ -60,7 +62,8 @@ const EditInventoryModal = ({ isOpen, onClose, onItemUpdated, itemId }: EditInve
           reorder_level: parseInt(reorderLevel),
           unit: unit,
           category: category || null,
-          status: status
+          status: status,
+          location: location || 'Main Warehouse' // ✅ NEW: Update location
         })
         .eq('id', itemId)
 
@@ -79,7 +82,6 @@ const EditInventoryModal = ({ isOpen, onClose, onItemUpdated, itemId }: EditInve
   }
 
   return (
-    // ✅ ACCESSIBILITY: Added modal semantics
     <div 
       className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"
       role="dialog"
@@ -150,6 +152,19 @@ const EditInventoryModal = ({ isOpen, onClose, onItemUpdated, itemId }: EditInve
                 aria-required="true"
               />
             </div>
+          </div>
+
+          {/* ✅ NEW: Location Input Field */}
+          <div>
+            <label htmlFor="edit-location" className="block mb-1.5 text-sm font-medium text-gray-700">Storage Location</label>
+            <input 
+              id="edit-location"
+              type="text" 
+              value={location} 
+              onChange={(e) => setLocation(e.target.value)} 
+              placeholder="e.g., Aisle A, Shelf 2"
+              className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" 
+            />
           </div>
 
           <div className="grid grid-cols-2 gap-4">

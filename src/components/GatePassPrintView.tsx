@@ -11,6 +11,7 @@ interface GatePassProps {
     vehicle_plate_no?: string;
     quantity_unit?: string;
     order_date: string;
+    location?: string; // ✅ NEW: Location field
     customers?: {
       name: string;
       company: string | null;
@@ -72,6 +73,7 @@ const GatePassPrintView = ({ order, customer }: GatePassProps) => {
             <th scope="col">Description</th>
             <th scope="col">Quantity</th>
             <th scope="col">Unit</th>
+            <th scope="col">Location</th> {/* ✅ NEW: Location Column Header */}
           </tr>
         </thead>
         <tbody>
@@ -81,6 +83,7 @@ const GatePassPrintView = ({ order, customer }: GatePassProps) => {
             <td>{order.product}</td>
             <td>{order.quantity}</td>
             <td>{order.quantity_unit || 'Boxes'}</td>
+            <td>{order.location || 'Main Warehouse'}</td> {/* ✅ NEW: Display Location */}
           </tr>
         </tbody>
       </table>
