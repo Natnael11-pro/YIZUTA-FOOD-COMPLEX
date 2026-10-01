@@ -2,7 +2,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '../../config/supabase'
 import { useAuth } from '../../context/AuthContext'
-// ✅ Added 'Factory' to imports
 import { Activity, CheckCircle, TrendingUp, Zap, Package, Plus, Send, RefreshCw, Trash2, AlertTriangle, Factory } from 'lucide-react'
 import AddBatchModal from '../../components/AddBatchModal'
 import AddProductionLineModal from '../../components/AddProductionLineModal'
@@ -43,7 +42,6 @@ interface MaterialRequest {
   created_at: string
 }
 
-// ✅ NEW: Interface for Production Requests from Warehouse
 interface ProductionRequest {
   id: string
   item_name: string
@@ -59,7 +57,7 @@ const ProductionPage = () => {
   const [lines, setLines] = useState<ProductionLine[]>([])
   const [batches, setBatches] = useState<Batch[]>([])
   const [requests, setRequests] = useState<MaterialRequest[]>([])
-  const [productionOrders, setProductionOrders] = useState<ProductionRequest[]>([]) // ✅ NEW State
+  const [productionOrders, setProductionOrders] = useState<ProductionRequest[]>([])
   
   const [loading, setLoading] = useState(true)
   const [isBatchModalOpen, setIsBatchModalOpen] = useState(false)
@@ -69,7 +67,6 @@ const ProductionPage = () => {
 
   const fetchData = useCallback(async () => {
     try {
-      // 1. Fetch Production Lines
       const { data: linesData, error: linesError } = await supabase
         .from('production_lines')
         .select('*')
@@ -78,7 +75,6 @@ const ProductionPage = () => {
       if (linesError) throw linesError
       setLines(linesData || [])
 
-      // 2. Fetch Batches
       const { data: batchesData, error: batchesError } = await supabase
         .from('batches')
         .select('*')
@@ -88,7 +84,6 @@ const ProductionPage = () => {
       if (batchesError) throw batchesError
       setBatches(batchesData || [])
 
-      // 3. Fetch Material Requests
       const { data: requestData, error: requestError } = await supabase
         .from('material_requests')
         .select('*')
@@ -98,7 +93,6 @@ const ProductionPage = () => {
       if (requestError) console.error('Requests error:', requestError)
       setRequests(requestData || [])
 
-      // ✅ 4. Fetch Pending Production Orders (from Warehouse)
       const { data: prodOrdersData, error: prodOrdersError } = await supabase
         .from('production_requests')
         .select('*')
@@ -119,27 +113,22 @@ const ProductionPage = () => {
     fetchData()
   }, [fetchData])
 
-  // ✅ NEW: Function to Fulfill a Production Request
   const handleFulfillOrder = async (order: ProductionRequest) => {
     const qty = prompt(`How many units of ${order.item_name} did you produce?`, order.quantity_needed.toString())
     if (!qty) return
 
     try {
-      // ✅ FIX: Use order.id to generate a unique, traceable batch ID. 
-      // This completely avoids Date.now() and satisfies the purity linter perfectly.
       const batchId = `REQ-${order.id.slice(0, 8)}`
       
-      // 1. Create Transfer Record for Warehouse
       const { error: transferError } = await supabase.from('transfer_requests').insert({
         product_name: order.item_name,
         quantity: parseInt(qty),
-        unit: 'boxes', // Default unit, can be adjusted
+        unit: 'boxes',
         status: 'pending',
         batch_id: batchId
       })
       if (transferError) throw transferError
 
-      // 2. Mark Production Request as Fulfilled
       await supabase.from('production_requests').update({ status: 'fulfilled' }).eq('id', order.id)
 
       alert(`Sent ${qty} units to Warehouse!`)
@@ -147,6 +136,31 @@ const ProductionPage = () => {
     } catch (error) {
       console.error(error)
       alert('Error sending to warehouse')
+    }
+  }
+
+  // ✅ NEW: Complete batch and send to quality check
+  const handleCompleteBatch = async (batchId: string) => {
+    if (!confirm('Mark this batch as completed and send to quality check?')) {
+      return
+    }
+
+    try {
+      const { error } = await supabase
+        .from('batches')
+        .update({ 
+          status: 'completed',
+          quality_status: 'pending'
+        })
+        .eq('id', batchId)
+
+      if (error) throw error
+
+      await fetchData()
+      alert('Batch completed! Ready for quality check.')
+    } catch (error) {
+      console.error('Error completing batch:', error)
+      alert('Failed to complete batch')
     }
   }
 
@@ -315,7 +329,6 @@ const ProductionPage = () => {
         <p className="mt-1 text-sm text-gray-500">Manufacturing operations and quality control</p>
       </div>
 
-      {/* ✅ NEW: Urgent Production Requests Section */}
       {productionOrders.length > 0 && (
         <div className="bg-orange-50 border border-orange-200 rounded-xl p-6">
           <h2 className="text-lg font-bold text-orange-800 flex items-center gap-2 mb-4">
@@ -518,6 +531,18 @@ const ProductionPage = () => {
                       </td>
                       {canModifyProduction && (
                         <td className="px-6 py-4">
+                          {/* ✅ NEW: Button for "in_progress" batches */}
+                          {batch.status === 'in_progress' && !batch.disposition && (
+                            <button
+                              onClick={() => handleCompleteBatch(batch.id)}
+                              aria-label={`Complete batch ${batch.batch_id} and send to quality check`}
+                              className="px-2 py-1 text-xs font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 rounded"
+                            >
+                              Complete & QC
+                            </button>
+                          )}
+
+                          {/* Existing: Quality check for completed batches with pending quality */}
                           {batch.status === 'completed' && batch.quality_status === 'pending' && !batch.disposition && (
                             <div className="flex gap-1">
                               <button
@@ -537,6 +562,7 @@ const ProductionPage = () => {
                             </div>
                           )}
 
+                          {/* Existing: Disposition options for failed batches */}
                           {batch.status === 'completed' && batch.quality_status === 'fail' && !batch.disposition && (
                             <div className="flex gap-1">
                               <button
@@ -566,6 +592,7 @@ const ProductionPage = () => {
                             </div>
                           )}
 
+                          {/* Existing: Send reworked batch to QC */}
                           {batch.disposition === 'rework' && batch.status === 'in_progress' && (
                             <button
                               onClick={() => handleSendToQualityCheck(batch.id)}
@@ -576,6 +603,7 @@ const ProductionPage = () => {
                             </button>
                           )}
 
+                          {/* Existing: Quality check for reworked batches */}
                           {batch.disposition === 'rework' && batch.status === 'quality_check' && (
                             <div className="flex gap-1">
                               <button
@@ -595,6 +623,7 @@ const ProductionPage = () => {
                             </div>
                           )}
 
+                          {/* Existing: Processed batches */}
                           {(batch.disposition === 'scrap' || batch.disposition === 'downgrade') && (
                             <span className="text-xs text-gray-400">Processed</span>
                           )}

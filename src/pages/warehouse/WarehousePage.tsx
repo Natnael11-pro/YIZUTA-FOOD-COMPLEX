@@ -105,41 +105,63 @@ const WarehousePage = () => {
     }
   }, [])
 
-  // ✅ UPDATED: Auto-generate production requests for low stock items (Fixed Duplicates)
+  // ✅ UPDATED: Auto-generate production requests (Fixed the Duplication Loop & Grouping)
   const checkAndCreateProductionRequests = async (currentInventory: InventoryItem[]) => {
-    for (const item of currentInventory) {
-      // Only trigger if stock is at or below reorder level
+    // 1. Group low stock items by name to avoid duplicates for the same product
+    const lowStockItemsMap = new Map<string, InventoryItem>();
+    
+    currentInventory.forEach(item => {
       if (item.quantity <= item.reorder_level) {
-        
-        // Clean the name to prevent "Pasta " vs "Pasta" issues
-        const cleanItemName = item.item_name.trim();
+        const cleanName = item.item_name.trim();
+        // If we haven't seen this item yet, add it to the map
+        if (!lowStockItemsMap.has(cleanName)) {
+            lowStockItemsMap.set(cleanName, item);
+        }
+      }
+    });
 
-        // Check if a pending request ALREADY exists for this specific item
+    // 2. Iterate through the UNIQUE low stock items
+    for (const [cleanItemName, item] of lowStockItemsMap) {
+        
+        // Check 1: Is there already a PENDING production request for this item?
         const { data: existingRequest } = await supabase
           .from('production_requests')
           .select('id')
-          .eq('item_name', cleanItemName) // Match the clean name
-          .eq('status', 'pending')        // Only look for pending ones
-          .single()
+          .eq('item_name', cleanItemName)
+          .eq('status', 'pending')
+          .single();
 
-        // If NO pending request exists, create one automatically
-        if (!existingRequest) {
-          const { error } = await supabase
-            .from('production_requests')
-            .insert({
-              item_name: cleanItemName,
-              // Logic: Produce enough to get back to a safe level (Reorder Level * 2)
-              quantity_needed: item.reorder_level * 2, 
-              status: 'pending'
-            })
-
-          if (error) {
-            console.error(`Failed to auto-generate request for ${cleanItemName}:`, error)
-          } else {
-            console.log(`✅ Auto-generated production request for ${cleanItemName}`)
-          }
+        if (existingRequest) {
+            continue; // Skip, we already asked for this.
         }
-      }
+
+        // Check 2: Is there already a PENDING transfer request (goods waiting to be accepted)?
+        const { data: pendingTransfer } = await supabase
+          .from('transfer_requests')
+          .select('id')
+          .eq('product_name', cleanItemName)
+          .eq('status', 'pending')
+          .single();
+
+        if (pendingTransfer) {
+            console.log(`Skipping ${cleanItemName}: Goods are already pending transfer.`);
+            continue; // Skip, production already did the work.
+        }
+
+        // 3. If we get here, we truly need to produce more.
+        const { error } = await supabase
+          .from('production_requests')
+          .insert({
+            item_name: cleanItemName,
+            quantity_needed: item.reorder_level * 2, 
+            status: 'pending'
+          });
+
+        if (error) {
+          console.error(`Failed to auto-generate request for ${cleanItemName}:`, error);
+        } else {
+          console.log(`✅ Auto-generated production request for ${cleanItemName}`);
+        }
     }
   }
 
