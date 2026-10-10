@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../config/supabase'
+import { useAuth } from '../context/AuthContext' // ✅ Added useAuth import
 import { CheckCircle, XCircle, Eye, FileText } from 'lucide-react'
 
 interface Request {
@@ -100,6 +101,9 @@ const RequestDetailModal = ({ isOpen, onClose, request }: ModalProps) => {
 }
 
 const PendingApprovalsTab = () => {
+  const { userRole } = useAuth() // ✅ Get userRole from AuthContext
+  const isExecutive = userRole === 'executive' // ✅ Check if user is executive
+
   const [requests, setRequests] = useState<Request[]>([])
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState<'pending' | 'approved' | 'rejected' | 'all'>('pending')
@@ -108,12 +112,10 @@ const PendingApprovalsTab = () => {
   const [selectedRequest, setSelectedRequest] = useState<Request | null>(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
 
-  // ✅ FIX: All fetch logic is now completely INSIDE the useEffect
   useEffect(() => {
     let isMounted = true
 
     const fetchData = async () => {
-      // Move setLoading inside the async function
       setLoading(true)
       
       let query = supabase
@@ -137,7 +139,6 @@ const PendingApprovalsTab = () => {
 
     fetchData()
 
-    // Cleanup function
     return () => {
       isMounted = false
     }
@@ -152,7 +153,6 @@ const PendingApprovalsTab = () => {
       .eq('id', id)
 
     if (!error) {
-      // ✅ Inline refetch - changed 'refetchError' to 'error'
       setLoading(true)
       let query = supabase
         .from('executive_requests')
@@ -186,7 +186,6 @@ const PendingApprovalsTab = () => {
       setRejectingId(null)
       setRejectionReason('')
       
-      // ✅ Inline refetch - changed 'refetchError' to 'error'
       setLoading(true)
       let query = supabase
         .from('executive_requests')
@@ -319,8 +318,8 @@ const PendingApprovalsTab = () => {
                 )}
               </div>
 
-              {/* Action Buttons - Only for Pending */}
-              {req.status === 'pending' && (
+              {/* ✅ Action Buttons - ONLY for Pending requests AND ONLY for Executive users */}
+              {req.status === 'pending' && isExecutive && (
                 rejectingId === req.id ? (
                   <div className="flex gap-2 mt-3 pt-3 border-t">
                     <input 
@@ -359,6 +358,15 @@ const PendingApprovalsTab = () => {
                     </button>
                   </div>
                 )
+              )}
+
+              {/* ✅ Read-Only Message for Admin users viewing pending requests */}
+              {req.status === 'pending' && !isExecutive && (
+                <div className="mt-3 pt-3 border-t">
+                  <p className="text-xs text-gray-500 italic flex items-center gap-1">
+                    <Eye className="w-3 h-3" /> View Only: Only Executive Managers can approve or reject requests.
+                  </p>
+                </div>
               )}
 
               {/* Show rejection reason for rejected requests */}
